@@ -2,6 +2,7 @@ extern crate alsa;
 
 use std::f64;
 use std::i16;
+use alsa::pcm;
 
 type AudioSample = i16;
 
@@ -127,9 +128,29 @@ impl AudioSignal {
 }
 
 struct BeatPlayer {
-    beat: Vec<AudioSample>,
-    accentuated_beat: Vec<AudioSample>,
+    bpm: u16,
+    beat: AudioSignal,
+    accentuated_beat: AudioSignal,
+    playback_buffer: AudioSignal,
     pattern: Vec<bool>,
+}
+
+impl BeatPlayer {
+    pub fn play_beat(&mut self) -> Result<(), (alsa::Error)> {
+        let pcm_handle = match pcm::PCM::new("default", alsa::Direction::Playback, false) {
+            Ok(pcm) => pcm,
+            Err(e) => return Err(e),
+        };
+
+        let pcm_hw_params = pcm::HwParams::any(&pcm_handle)?;
+        pcm_hw_params.set_format(pcm::Format::s16())?;
+        pcm_hw_params.set_access(pcm::Access::RWInterleaved)?;
+        pcm_hw_params.set_rate(settings::SAMPLERATE.round() as u32, alsa::ValueOr::Nearest)?;
+        pcm_hw_params.set_rate_resample(true)?;
+        pcm_handle.hw_params(&pcm_hw_params)?;
+
+        Ok(())
+    }
 }
 
 struct Repl {
@@ -161,10 +182,10 @@ fn main() {
             for sample in &sine.signal {
                 print!("{} ", sample);
             }
-        },
+        }
         _ => {
             println!("fade_in_out() did not work");
-        },
+        }
     }
     println!();
 }
