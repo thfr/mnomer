@@ -28,16 +28,24 @@ struct AudioSignal {
 }
 
 impl AudioSignal {
-    pub fn generate_sine(freq: f64, length: f64) -> AudioSignal {
+    pub fn generate_sine(freq: f64, length: f64, overtones: u8) -> AudioSignal {
         let num_samples = (length * settings::SAMPLERATE).round() as usize;
         let mut sine: Vec<AudioSample> = Vec::with_capacity(num_samples);
         for sam in 0..num_samples {
             let x = sam as f64;
             let pi = f64::consts::PI;
             let srate = settings::SAMPLERATE;
-            let value = (x * 2.0 * pi * freq / srate).sin();
+            let mut value = (x * 2.0 * pi * freq / srate).sin();
+            let ot_mul_gain = 0.5;
+            let mut ot_gain = 0.5;
+            for ot in 0..overtones {
+                let tone_freq = (ot + 2) as f64 * freq;
+                value += ot_gain * (x * 2.0 * pi * tone_freq / srate).sin();
+                ot_gain *= ot_mul_gain;
+            }
             sine.push(
-                (value * settings::SINE_MAX_AMPLITUDE * i16::MAX as f64).round() as AudioSample,
+                (value * settings::SINE_MAX_AMPLITUDE * AudioSample::max_value() as f64).round()
+                    as AudioSample,
             );
         }
         AudioSignal { signal: sine }
@@ -160,7 +168,7 @@ struct Repl {
 fn main() {
     let freq = 500.0;
     let length = 0.002;
-    let mut sine = AudioSignal::generate_sine(freq, length);
+    let mut sine = AudioSignal::generate_sine(freq, length, 3);
     println!("Sine {}Hz, {}s:", freq, length);
     for sample in &sine.signal {
         print!("{} ", sample);
