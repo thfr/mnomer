@@ -57,8 +57,25 @@ impl AddAssign for AudioSignal {
     }
 }
 
+impl Mul<f64> for AudioSignal {
+    type Output = AudioSignal;
+
+    fn mul(self, factor: f64) -> AudioSignal {
+        AudioSignal {
+            signal: {
+                let mut new_as = self.signal.to_vec();
+                for sample in new_as.iter_mut() {
+                    *sample = ((*sample) as f64 * factor).round() as AudioSample;
+                }
+                new_as
+            }
+        }
+    }
+}
+
 impl AudioSignal {
     pub fn generate_sine(freq: f64, length: f64, overtones: u8) -> AudioSignal {
+        // TODO: split function and use new defined operators on the audiosignal
         let num_samples = (length * settings::SAMPLERATE).round() as usize;
         let mut sine: Vec<AudioSample> = Vec::with_capacity(num_samples);
         for sam in 0..num_samples {

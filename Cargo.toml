@@ -1,5 +1,5 @@
 [package]
-name = "mnome_r"
+name = "mnomer"
 version = "0.1.0"
 authors = ["Thomas Frank <thfr.git@e.mail.de>"]
 edition = "2018"
