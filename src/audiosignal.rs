@@ -68,7 +68,7 @@ impl Mul<f64> for AudioSignal {
                     *sample = ((*sample) as f64 * factor).round() as AudioSample;
                 }
                 new_as
-            }
+            },
         }
     }
 }
