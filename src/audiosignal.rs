@@ -25,6 +25,14 @@ pub struct AudioSignal {
     pub signal: Vec<AudioSample>,
 }
 
+impl Clone for AudioSignal {
+    fn clone(&self) -> Self {
+        AudioSignal {
+            signal: self.signal.clone(),
+        }
+    }
+}
+
 impl Add for AudioSignal {
     type Output = AudioSignal;
 
@@ -159,6 +167,7 @@ impl AudioSignal {
             *sample = yv[2].round() as AudioSample;
         }
     }
+
     pub fn lowpass_20khz(&mut self) {
         /* Digital filter designed by mkfilter/mkshape/gencode   A.J. Fisher
          *    Command line: /www/usr/fisher/helpers/mkfilter -Bu -Lp -o 2 -a 4.1666666667e-01

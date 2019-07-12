@@ -1,16 +1,14 @@
-
 mod audiosignal;
 mod beatplayer;
 
 use audiosignal::AudioSignal;
 use beatplayer::BeatPlayer;
 
-
-struct Repl {
-    commands: Vec<(String, fn(&str))>,
-}
-
-impl Repl {}
+// TODO Repl
+// struct Repl {
+//     commands: Vec<(String, fn(&str))>,
+// }
+// impl Repl {}
 
 fn main() {
     let freq = 500.0;
@@ -43,4 +41,16 @@ fn main() {
         }
     }
     println!();
+
+    let beatplayer = BeatPlayer {
+        bpm: 80,
+        beat: AudioSignal::generate_sine(440.0, 0.05, 1),
+        accentuated_beat: sine.clone(),
+        playback_buffer: sine.clone(),
+        pattern: vec![true],
+    };
+    match beatplayer.play_beat() {
+        Result::Ok(_) => println!("Everything is fine"),
+        Result::Err(_) => println!("Error happened"),
+    };
 }
