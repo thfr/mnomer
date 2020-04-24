@@ -13,14 +13,8 @@ pub struct BeatPlayer {
 }
 
 impl BeatPlayer {
-    pub fn play_beat(self) -> Result<(), (alsa::Error)> {
-        let pcm_handle = pcm::PCM::new("default", alsa::Direction::Playback, false)?;
-        let pcm_hw_params = pcm::HwParams::any(&pcm_handle)?;
-        pcm_hw_params.set_format(pcm::Format::s16())?;
-        pcm_hw_params.set_access(pcm::Access::RWInterleaved)?;
-        pcm_hw_params.set_rate(settings::SAMPLERATE.round() as u32, alsa::ValueOr::Nearest)?;
-        pcm_hw_params.set_rate_resample(true)?;
-        pcm_handle.hw_params(&pcm_hw_params)?;
+    pub fn play_beat(&self) -> Result<(), alsa::Error> {
+        let pcm_handle = self.init_audio()?;
         let io = pcm_handle.io_i16()?;
 
         for _ in 0..100 {
@@ -34,5 +28,18 @@ impl BeatPlayer {
         pcm_handle.drain()?;
 
         Ok(())
+    }
+
+    fn init_audio(&self) -> Result<alsa::pcm::PCM, alsa::Error> {
+        let pcm_handle = pcm::PCM::new("default", alsa::Direction::Playback, false)?;
+        {
+            let pcm_hw_params = pcm::HwParams::any(&pcm_handle)?;
+            pcm_hw_params.set_format(pcm::Format::s16())?;
+            pcm_hw_params.set_access(pcm::Access::RWInterleaved)?;
+            pcm_hw_params.set_rate(settings::SAMPLERATE.round() as u32, alsa::ValueOr::Nearest)?;
+            pcm_hw_params.set_rate_resample(true)?;
+            pcm_handle.hw_params(&pcm_hw_params)?;
+        }
+        Ok(pcm_handle)
     }
 }
