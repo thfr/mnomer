@@ -37,20 +37,11 @@ impl Add for AudioSignal {
     type Output = AudioSignal;
 
     fn add(self, other: AudioSignal) -> AudioSignal {
-        let (smaller, larger) = if self.signal.len() < other.signal.len() {
-            (&self.signal, &other.signal)
-        } else {
-            (&other.signal, &self.signal)
+        let mut new_as = AudioSignal {
+            signal:  self.signal.to_vec(),
         };
-        AudioSignal {
-            signal: {
-                let mut s = larger.to_vec();
-                for idx in 0..smaller.len() {
-                    s[idx] += smaller[idx];
-                }
-                s
-            },
-        }
+        new_as += other;
+        new_as
     }
 }
 
@@ -69,14 +60,18 @@ impl Mul<f64> for AudioSignal {
     type Output = AudioSignal;
 
     fn mul(self, factor: f64) -> AudioSignal {
-        AudioSignal {
-            signal: {
-                let mut new_as = self.signal.to_vec();
-                for sample in new_as.iter_mut() {
-                    *sample = ((*sample) as f64 * factor).round() as AudioSample;
-                }
-                new_as
-            },
+        let mut new_as = AudioSignal {
+            signal: self.signal.to_vec(),
+        };
+        new_as *= factor;
+        new_as
+    }
+}
+
+impl MulAssign<f64> for AudioSignal {
+    fn mul_assign(&mut self, factor: f64) {
+        for sample in self.signal.iter_mut() {
+            *sample = ((*sample) as f64 * factor).round() as AudioSample;
         }
     }
 }
