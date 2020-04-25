@@ -38,7 +38,7 @@ impl Add for AudioSignal {
 
     fn add(self, other: AudioSignal) -> AudioSignal {
         let mut new_as = AudioSignal {
-            signal:  self.signal.to_vec(),
+            signal: self.signal.to_vec(),
         };
         new_as += other;
         new_as
@@ -51,7 +51,7 @@ impl AddAssign for AudioSignal {
             self.signal.resize(other.signal.len(), 0);
         }
         for idx in 0..other.signal.len() {
-            self.signal[idx] += other.signal[idx];
+            self.signal[idx] = self.signal[idx].saturating_add(other.signal[idx]);
         }
     }
 }
