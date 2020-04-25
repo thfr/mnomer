@@ -77,28 +77,34 @@ impl MulAssign<f64> for AudioSignal {
 }
 
 impl AudioSignal {
-    pub fn generate_sine(freq: f64, length: f64, overtones: u8) -> AudioSignal {
-        // TODO: split function and use new defined operators on the audiosignal
-        let num_samples = (length * settings::SAMPLERATE).round() as usize;
-        let mut sine: Vec<AudioSample> = Vec::with_capacity(num_samples);
+    pub fn generate_tone(freq: f64, length: f64, overtones: u8) -> AudioSignal {
+        // base signal
+        let mut signal = AudioSignal::generate_sine(freq, length);
+
+        // add overtones
+        for freq_factor in 2..(overtones + 2) {
+            signal += AudioSignal::generate_sine(freq_factor as f64 * freq, length) * 0.5;
+        }
+
+        signal
+    }
+
+    fn generate_sine(freq: f64, length: f64) -> AudioSignal {
+        let pi = f64::consts::PI;
+        let sample_rate = settings::SAMPLERATE;
+        let amplitude = settings::SINE_MAX_AMPLITUDE * AudioSample::max_value() as f64;
+
+        let num_samples = (length * sample_rate).round() as usize;
+        let mut audio_signal = AudioSignal {
+            signal: Vec::with_capacity(num_samples),
+        };
+
         for sam in 0..num_samples {
             let x = sam as f64;
-            let pi = f64::consts::PI;
-            let srate = settings::SAMPLERATE;
-            let mut value = (x * 2.0 * pi * freq / srate).sin();
-            let ot_mul_gain = 0.5;
-            let mut ot_gain = 0.5;
-            for ot in 0..overtones {
-                let tone_freq = (ot + 2) as f64 * freq;
-                value += ot_gain * (x * 2.0 * pi * tone_freq / srate).sin();
-                ot_gain *= ot_mul_gain;
-            }
-            sine.push(
-                (value * settings::SINE_MAX_AMPLITUDE * AudioSample::max_value() as f64).round()
-                    as AudioSample,
-            );
+            let value = amplitude * (x * 2.0 * pi * freq / sample_rate).sin();
+            audio_signal.signal.push(value.round() as AudioSample);
         }
-        AudioSignal { signal: sine }
+        audio_signal
     }
 
     pub fn fade_in_out(&mut self, fade_in_time: f64, fade_out_time: f64) -> Result<(), ()> {
