@@ -13,12 +13,33 @@ pub struct BeatPlayer {
 }
 
 impl BeatPlayer {
-    pub fn play_beat(&self) -> Result<(), alsa::Error> {
+    pub fn play_beat(&mut self) -> Result<(), alsa::Error> {
+        println!("Starting playback with {} bpm", self.bpm);
+        // Create the playback buffer over which the output loops
+        // Use self.beat and silence to fill the buffer
+        if self.beat.signal.len() == 0 {
+            return Err(alsa::Error::unsupported("No beat to play"));
+        }
+
+        let samples_per_beat = ((60.0 * settings::SAMPLERATE) / self.bpm as f64).round() as isize;
+
+        let silence_samples = samples_per_beat as isize - self.beat.signal.len() as isize;
+        if  silence_samples < 0 {
+            return Err(alsa::Error::unsupported("Beat to long to play"));
+        }
+
+        // prepare the playback buffer
+        self.playback_buffer.signal = self.beat.signal.to_vec();
+
+        for _ in 0..silence_samples {
+            self.playback_buffer.signal.push(0);
+        }
+
         let pcm_handle = self.init_audio()?;
         let io = pcm_handle.io_i16()?;
 
-        for _ in 0..100 {
-            io.writei(&self.beat.signal[..])?;
+        for _ in 0..3 {
+            io.writei(&self.playback_buffer.signal[..])?;
         }
 
         if pcm_handle.state() != pcm::State::Running {
