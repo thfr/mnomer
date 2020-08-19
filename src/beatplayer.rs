@@ -4,15 +4,23 @@ use alsa::pcm;
 use crate::audiosignal::settings;
 use crate::audiosignal::AudioSignal;
 
+use std::sync::Arc;
+use std::thread;
+
 pub struct BeatPlayer {
     pub bpm: u16,
     pub beat: AudioSignal,
     pub accentuated_beat: AudioSignal,
-    pub playback_buffer: AudioSignal,
     pub pattern: Vec<bool>,
+    stop_request: std::sync::Arc<bool>,
+    thread: std::thread::JoinHandle<dyn Fn() + 'static>,
 }
 
 impl BeatPlayer {
+    pub fn stop(&mut self) {
+        *self.stop_request = true;
+    }
+
     pub fn play_beat(&mut self) -> Result<(), alsa::Error> {
         println!("Starting playback with {} bpm", self.bpm);
         // Create the playback buffer over which the output loops
@@ -24,29 +32,33 @@ impl BeatPlayer {
         let samples_per_beat = ((60.0 * settings::SAMPLERATE) / self.bpm as f64).round() as isize;
 
         let silence_samples = samples_per_beat as isize - self.beat.signal.len() as isize;
-        if  silence_samples < 0 {
+        if silence_samples < 0 {
             return Err(alsa::Error::unsupported("Beat to long to play"));
         }
 
         // prepare the playback buffer
-        self.playback_buffer.signal = self.beat.signal.to_vec();
+        let mut playback_buffer: AudioSignal;
+        playback_buffer.signal = self.beat.signal.to_vec();
 
         for _ in 0..silence_samples {
-            self.playback_buffer.signal.push(0);
+            playback_buffer.signal.push(0);
         }
 
         let pcm_handle = self.init_audio()?;
         let io = pcm_handle.io_i16()?;
 
-        for _ in 0..3 {
-            io.writei(&self.playback_buffer.signal[..])?;
-        }
-
         if pcm_handle.state() != pcm::State::Running {
             pcm_handle.start()?;
         };
 
-        pcm_handle.drain()?;
+
+        self.thread = thread::spawn(move || {
+            while !*self.stop_request {
+                io.writei(&playback_buffer.signal[..]).unwrap();
+            }
+
+            pcm_handle.drain().unwrap();
+        });
 
         Ok(())
     }
