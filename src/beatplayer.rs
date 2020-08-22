@@ -4,21 +4,50 @@ use alsa::pcm;
 use crate::audiosignal::settings;
 use crate::audiosignal::AudioSignal;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::vec::Vec;
 
+/// A metronome sound player that realizes the beat playback
 pub struct BeatPlayer {
     pub bpm: u16,
     pub beat: AudioSignal,
     pub accentuated_beat: AudioSignal,
     pub pattern: Vec<bool>,
-    stop_request: std::sync::Arc<bool>,
-    thread: std::thread::JoinHandle<dyn Fn() + 'static>,
+
+    stop_request: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl BeatPlayer {
+    pub fn new(
+        bpm: u16,
+        beat: AudioSignal,
+        accentuated_beat: AudioSignal,
+        pattern: Vec<bool>,
+    ) -> BeatPlayer {
+        BeatPlayer {
+            bpm: bpm,
+            beat: beat,
+            accentuated_beat: accentuated_beat,
+            pattern: pattern,
+            stop_request: Arc::new(AtomicBool::new(false)),
+            thread: None,
+        }
+    }
+
     pub fn stop(&mut self) {
-        *self.stop_request = true;
+        match self.thread {
+            Some(_) => {
+                let mut join_handle = None;
+                std::mem::swap(&mut join_handle, &mut self.thread);
+                self.stop_request.store(true, Ordering::SeqCst);
+                join_handle.unwrap().join().unwrap();
+                self.thread = None;
+            }
+            None => (),
+        }
     }
 
     pub fn play_beat(&mut self) -> Result<(), alsa::Error> {
@@ -29,6 +58,10 @@ impl BeatPlayer {
             return Err(alsa::Error::unsupported("No beat to play"));
         }
 
+        if self.thread.is_some() {
+            return Err(alsa::Error::unsupported("Playback is already running"));
+        }
+
         let samples_per_beat = ((60.0 * settings::SAMPLERATE) / self.bpm as f64).round() as isize;
 
         let silence_samples = samples_per_beat as isize - self.beat.signal.len() as isize;
@@ -37,42 +70,47 @@ impl BeatPlayer {
         }
 
         // prepare the playback buffer
-        let mut playback_buffer: AudioSignal;
-        playback_buffer.signal = self.beat.signal.to_vec();
+        let mut playback_buffer = AudioSignal {
+            signal: self.beat.signal.to_vec(),
+        };
 
         for _ in 0..silence_samples {
             playback_buffer.signal.push(0);
         }
 
-        let pcm_handle = self.init_audio()?;
-        let io = pcm_handle.io_i16()?;
+        let stop_request = Arc::clone(&self.stop_request);
+        self.thread = Some(thread::spawn(move || {
+            let pcm_handle = init_audio().unwrap();
+            let io = pcm_handle.io_i16().unwrap();
 
-        if pcm_handle.state() != pcm::State::Running {
-            pcm_handle.start()?;
-        };
-
-
-        self.thread = thread::spawn(move || {
-            while !*self.stop_request {
+            if pcm_handle.state() != pcm::State::Running {
+                pcm_handle.start().unwrap();
+            };
+            while !stop_request.load(Ordering::SeqCst) {
                 io.writei(&playback_buffer.signal[..]).unwrap();
             }
+            stop_request.store(false, Ordering::SeqCst);
 
             pcm_handle.drain().unwrap();
-        });
+        }));
 
         Ok(())
     }
+}
 
-    fn init_audio(&self) -> Result<alsa::pcm::PCM, alsa::Error> {
-        let pcm_handle = pcm::PCM::new("default", alsa::Direction::Playback, false)?;
-        {
-            let pcm_hw_params = pcm::HwParams::any(&pcm_handle)?;
-            pcm_hw_params.set_format(pcm::Format::s16())?;
-            pcm_hw_params.set_access(pcm::Access::RWInterleaved)?;
-            pcm_hw_params.set_rate(settings::SAMPLERATE.round() as u32, alsa::ValueOr::Nearest)?;
-            pcm_hw_params.set_rate_resample(true)?;
-            pcm_handle.hw_params(&pcm_hw_params)?;
-        }
-        Ok(pcm_handle)
+fn init_audio() -> Result<alsa::pcm::PCM, alsa::Error> {
+    let pcm_handle = pcm::PCM::new("default", alsa::Direction::Playback, false)?;
+    {
+        let pcm_hw_params = pcm::HwParams::any(&pcm_handle)?;
+        pcm_hw_params.set_format(pcm::Format::s16())?;
+        pcm_hw_params.set_access(pcm::Access::RWInterleaved)?;
+        pcm_hw_params.set_rate(settings::SAMPLERATE.round() as u32, alsa::ValueOr::Nearest)?;
+        pcm_hw_params.set_rate_resample(true)?;
+        let period_size = (settings::SAMPLERATE * settings::ALSA_MIN_WRITE).round() as i64;
+        pcm_hw_params.set_period_size_near(period_size, alsa::ValueOr::Nearest)?;
+        pcm_hw_params.set_buffer_size_near(2 * period_size)?;
+        println!("Setting hw params:\n{:?}", pcm_hw_params);
+        pcm_handle.hw_params(&pcm_hw_params)?;
     }
+    Ok(pcm_handle)
 }
