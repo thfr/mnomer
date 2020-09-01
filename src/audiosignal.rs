@@ -115,8 +115,8 @@ impl AudioSignal {
         // *Exponential Fading* is used because it is more pleasant to ear than linear fading.
         //
         // A factor with changing value is multiplied to each sample of the fading period.
-        // The factor must be increased by multiplying it with a constant ratio that. Therefore the
-        // factor must have a starting value > 0.0 .
+        // The factor must be increased by multiplying it with a constant ratio until it reaches
+        // 1.0.  Therefore the factor must have a starting value > 0.0.
         //    fs * (r ** steps) = 1         (discrete form: f[n+1] = f[n] * r , while f[n+1] <= 1)
         //    r ** steps  = 1 / fs
         //    r = (1 / fs) ** (1 / steps)
