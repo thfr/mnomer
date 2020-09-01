@@ -13,7 +13,8 @@ use beatplayer::BeatPlayer;
 fn main() {
     let freq = 500.0;
     let length = 0.002;
-    let mut sine = AudioSignal::generate_tone(freq, length, 3);
+    let overtones = 3;
+    let mut sine = AudioSignal::generate_tone(freq, length, overtones);
 
     sine.highpass_20hz();
     sine.lowpass_20khz();
@@ -39,6 +40,7 @@ fn main() {
         Ok(_) => println!("Started the beatplayer again while running, this should not happen!"),
         Err(e) => println!("Not possible to start the beatplayer while a beat is playing, good. Following error was reported:\n{}", e),
     }
+
     println!("Stopping thread");
     beatplayer.stop();
     println!("Thread has stopped");

@@ -149,8 +149,8 @@ impl AudioSignal {
 
     pub fn highpass_20hz(&mut self) {
         /* Digital filter designed by mkfilter/mkshape/gencode   A.J. Fisher
-         *    Command line: /www/usr/fisher/helpers/mkfilter -Bu -Lp -o 2 -a 4.1666666667e-01
-         * 0.0000000000e+00 -l */
+         *    Command line: /www/usr/fisher/helpers/mkfilter -Bu -Hp -o 2 -a 4.1666666667e-04
+         *    0.0000000000e+00 -l */
 
         let gain = 1.001852916e+00;
 
@@ -172,7 +172,7 @@ impl AudioSignal {
     pub fn lowpass_20khz(&mut self) {
         /* Digital filter designed by mkfilter/mkshape/gencode   A.J. Fisher
          *    Command line: /www/usr/fisher/helpers/mkfilter -Bu -Lp -o 2 -a 4.1666666667e-01
-         * 0.0000000000e+00 -l */
+         *    0.0000000000e+00 -l */
 
         let gain = 1.450734152e+00;
 
