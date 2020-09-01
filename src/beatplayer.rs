@@ -104,6 +104,7 @@ fn init_audio() -> Result<alsa::pcm::PCM, alsa::Error> {
         let pcm_hw_params = pcm::HwParams::any(&pcm_handle)?;
         pcm_hw_params.set_format(pcm::Format::s16())?;
         pcm_hw_params.set_access(pcm::Access::RWInterleaved)?;
+        pcm_hw_params.set_channels(1)?;
         pcm_hw_params.set_rate(settings::SAMPLERATE.round() as u32, alsa::ValueOr::Nearest)?;
         pcm_hw_params.set_rate_resample(true)?;
         let period_size = (settings::SAMPLERATE * settings::ALSA_MIN_WRITE).round() as i64;

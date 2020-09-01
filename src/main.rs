@@ -21,7 +21,12 @@ fn main() {
     let fade_time = 0.00025;
     sine.fade_in_out(fade_time, fade_time).unwrap();
 
-    let mut beatplayer = BeatPlayer::new(80, AudioSignal::generate_tone(440.0, 0.05, 1), sine.clone(), vec![true]);
+    let mut beatplayer = BeatPlayer::new(
+        80,
+        AudioSignal::generate_tone(440.0, 0.05, 1),
+        sine.clone(),
+        vec![true],
+    );
 
     match beatplayer.play_beat() {
         Result::Ok(_) => println!("Everything is fine, playing beat"),
