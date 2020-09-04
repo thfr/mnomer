@@ -1,14 +1,11 @@
 mod audiosignal;
 mod beatplayer;
+mod repl;
 
 use audiosignal::AudioSignal;
 use beatplayer::BeatPlayer;
+use repl::Repl;
 
-// TODO Repl
-// struct Repl {
-//     commands: Vec<(String, fn(&String))>,
-// }
-// impl Repl {}
 
 fn main() {
     let freq = 500.0;
