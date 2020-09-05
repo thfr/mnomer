@@ -6,8 +6,26 @@ use audiosignal::AudioSignal;
 use beatplayer::BeatPlayer;
 use repl::Repl;
 
-
 fn main() {
+    let mut repl = Repl {
+        commands: vec![
+            ("".to_string(), |_| println!("Found empty string")),
+            ("start".to_string(), |_| println!("Found start command")),
+            ("bpm".to_string(), |args| {
+                print!("Found bpm command");
+                match args {
+                    Some(bpm) => print!(" with following args: \"{}\"", bpm),
+                    None => print!(" with no args"),
+                }
+                println!("");
+            }),
+        ],
+        exit: false,
+    };
+    repl.process();
+}
+
+fn test_beatplayer() {
     let freq = 500.0;
     let length = 0.002;
     let overtones = 3;
