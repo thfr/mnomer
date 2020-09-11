@@ -21,6 +21,7 @@ fn main() {
             }),
         ],
         exit: false,
+        prompt: "♩♩♩♩: ".to_string()
     };
     repl.process();
 }
