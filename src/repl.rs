@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::string::String;
 
 pub struct Repl {
-    pub commands: Vec<(String, fn(&Option<&str>))>,
+    pub commands: Vec<(String, Box<dyn FnMut(Option<&str>)>)>,
     pub exit: bool,
     pub prompt: String,
 }
@@ -31,16 +31,17 @@ impl Repl {
                         None => parsed_cmd = Some(""),
                     }
                     // check if parsed command is in self.commands and execute its function
-                    for (cmd, function) in &self.commands {
-                        let args = splitted.next();
+                    for (cmd, function) in &mut self.commands {
                         match parsed_cmd {
                             Some(parsed_cmd) => {
                                 if parsed_cmd == cmd {
-                                    function(&args)
-                                }
+                                    let args = splitted.next();
+                                    function(args);
+                                    break;
+                                };
                             }
                             None => (),
-                        }
+                        };
                     }
                 }
                 Err(error) => println!("error: {}", error),

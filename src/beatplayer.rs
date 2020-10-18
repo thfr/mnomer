@@ -10,6 +10,7 @@ use std::thread;
 use std::vec::Vec;
 
 /// A metronome sound player that realizes the beat playback
+#[derive(Debug)]
 pub struct BeatPlayer {
     pub bpm: u16,
     pub beat: AudioSignal,
@@ -20,6 +21,17 @@ pub struct BeatPlayer {
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
+impl ToString for BeatPlayer {
+    fn to_string(&self) -> String {
+        format!(
+            "bpm: {}, pattern: {:?}, playing: {}",
+            self.bpm,
+            self.pattern,
+            self.is_playing()
+        )
+    }
+}
+
 impl BeatPlayer {
     pub fn new(
         bpm: u16,
@@ -28,13 +40,17 @@ impl BeatPlayer {
         pattern: Vec<bool>,
     ) -> BeatPlayer {
         BeatPlayer {
-            bpm: bpm,
-            beat: beat,
-            accentuated_beat: accentuated_beat,
-            pattern: pattern,
+            bpm,
+            beat,
+            accentuated_beat,
+            pattern,
             stop_request: Arc::new(AtomicBool::new(false)),
             thread: None,
         }
+    }
+
+    pub fn is_playing(&self) -> bool {
+        self.thread.is_some()
     }
 
     pub fn stop(&mut self) {
@@ -50,11 +66,42 @@ impl BeatPlayer {
         }
     }
 
+    pub fn set_bpm(&mut self, bpm: u16) -> bool {
+        if bpm == 0 {
+            return false;
+        }
+
+        let restart = if self.is_playing() {
+            self.stop();
+            true
+        } else {
+            false
+        };
+
+        let previous_bpm = self.bpm;
+        self.bpm = bpm;
+
+        if restart {
+            match self.play_beat() {
+                Err(_) => {
+                    self.bpm = previous_bpm;
+                    return false;
+                }
+                _ => (),
+            };
+        }
+
+        true
+    }
+
     pub fn play_beat(&mut self) -> Result<(), alsa::Error> {
-        println!("Starting playback with {} bpm", self.bpm);
+        println!(
+            "Starting playback with {} bpm with pattern {:?}",
+            self.bpm, self.pattern
+        );
         // Create the playback buffer over which the output loops
         // Use self.beat and silence to fill the buffer
-        if self.beat.signal.len() == 0 {
+        if self.beat.signal.is_empty() {
             return Err(alsa::Error::unsupported("No beat to play"));
         }
 
@@ -110,7 +157,6 @@ fn init_audio() -> Result<alsa::pcm::PCM, alsa::Error> {
         let period_size = (settings::SAMPLERATE * settings::ALSA_MIN_WRITE).round() as i64;
         pcm_hw_params.set_period_size_near(period_size, alsa::ValueOr::Nearest)?;
         pcm_hw_params.set_buffer_size_near(2 * period_size)?;
-        println!("Setting hw params:\n{:?}", pcm_hw_params);
         pcm_handle.hw_params(&pcm_hw_params)?;
     }
     Ok(pcm_handle)

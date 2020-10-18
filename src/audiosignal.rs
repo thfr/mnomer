@@ -21,6 +21,7 @@ pub fn samples_to_time(samples: usize) -> f64 {
     samples as f64 / settings::SAMPLERATE
 }
 
+#[derive(Debug)]
 pub struct AudioSignal {
     pub signal: Vec<AudioSample>,
 }
