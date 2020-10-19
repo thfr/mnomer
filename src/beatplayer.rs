@@ -1,11 +1,11 @@
 extern crate alsa;
 use alsa::pcm;
 
-use crate::audiosignal::settings;
-use crate::audiosignal::AudioSignal;
+use crate::audiosignal::{settings, time_in_samples, AudioSignal};
 
+use std::cmp::min;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::vec::Vec;
 
@@ -14,11 +14,12 @@ use std::vec::Vec;
 pub struct BeatPlayer {
     pub bpm: u16,
     pub beat: AudioSignal,
-    pub accentuated_beat: AudioSignal,
+    pub ac_beat: AudioSignal,
     pub pattern: Vec<bool>,
 
     stop_request: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
+    starting: Mutex<()>,
 }
 
 impl ToString for BeatPlayer {
@@ -36,26 +37,35 @@ impl BeatPlayer {
     pub fn new(
         bpm: u16,
         beat: AudioSignal,
-        accentuated_beat: AudioSignal,
+        ac_beat: AudioSignal,
         pattern: Vec<bool>,
     ) -> BeatPlayer {
         BeatPlayer {
             bpm,
             beat,
-            accentuated_beat,
+            ac_beat,
             pattern,
             stop_request: Arc::new(AtomicBool::new(false)),
             thread: None,
+            starting: Mutex::new(()),
         }
     }
 
+    /// Check whether the beat playback is running or starting
     pub fn is_playing(&self) -> bool {
-        self.thread.is_some()
+        let lockguard = self.starting.try_lock();
+        if lockguard.is_err() || self.thread.is_some() {
+            true
+        } else {
+            false
+        }
     }
 
+    /// Stop the beat playback
     pub fn stop(&mut self) {
         match self.thread {
             Some(_) => {
+                println!("Stopping playback");
                 let mut join_handle = None;
                 std::mem::swap(&mut join_handle, &mut self.thread);
                 self.stop_request.store(true, Ordering::SeqCst);
@@ -66,6 +76,7 @@ impl BeatPlayer {
         }
     }
 
+    /// Set the beats per minute
     pub fn set_bpm(&mut self, bpm: u16) -> bool {
         if bpm == 0 {
             return false;
@@ -94,7 +105,16 @@ impl BeatPlayer {
         true
     }
 
+    /// Start the beat playback
     pub fn play_beat(&mut self) -> Result<(), alsa::Error> {
+        // acquire playback lock
+        let lockguard = self.starting.try_lock();
+        if lockguard.is_err() || self.thread.is_some() {
+            return Err(alsa::Error::unsupported(
+                "Cannot start beat playback, it is already running",
+            ));
+        }
+
         println!(
             "Starting playback with {} bpm with pattern {:?}",
             self.bpm, self.pattern
@@ -113,16 +133,44 @@ impl BeatPlayer {
 
         let silence_samples = samples_per_beat as isize - self.beat.signal.len() as isize;
         if silence_samples < 0 {
-            return Err(alsa::Error::unsupported("Beat to long to play"));
+            return Err(alsa::Error::unsupported(
+                "Beat to long to play at current bpm",
+            ));
+        }
+
+        let ac_silence_samples =
+            samples_per_beat as isize - self.ac_beat.signal.len() as isize;
+        if ac_silence_samples < 0 {
+            return Err(alsa::Error::unsupported(
+                "Accentuated beat to long to play at current bpm",
+            ));
         }
 
         // prepare the playback buffer
+        let ac_beat_count = self.pattern.iter().filter(|&x| *x == true).count();
+        let beat_count = self.pattern.iter().filter(|&x| *x == false).count();
+        let playback_buffer_samples = ac_beat_count
+            * (self.ac_beat.signal.len() + ac_silence_samples as usize)
+            + beat_count * (self.beat.signal.len() + silence_samples as usize);
         let mut playback_buffer = AudioSignal {
-            signal: self.beat.signal.to_vec(),
+            signal: Vec::with_capacity(playback_buffer_samples),
         };
-
-        for _ in 0..silence_samples {
-            playback_buffer.signal.push(0);
+        for is_accentuated_beat in &self.pattern {
+            if *is_accentuated_beat {
+                playback_buffer
+                    .signal
+                    .extend_from_slice(&self.ac_beat.signal[0..]);
+                for _ in 0..ac_silence_samples {
+                    playback_buffer.signal.push(0);
+                }
+            } else {
+                playback_buffer
+                    .signal
+                    .extend_from_slice(&self.beat.signal[0..]);
+                for _ in 0..silence_samples {
+                    playback_buffer.signal.push(0);
+                }
+            }
         }
 
         let stop_request = Arc::clone(&self.stop_request);
@@ -133,8 +181,26 @@ impl BeatPlayer {
             if pcm_handle.state() != pcm::State::Running {
                 pcm_handle.start().unwrap();
             };
+
+            // make the write operations to the ALSA device independent from the size of the
+            // playback buffer by only giving fixed size slices to `io.writei`
+            let samples_per_write_op = time_in_samples(0.1);
+            let buffer_splits =
+                (playback_buffer.signal.len() as f64 / samples_per_write_op as f64).ceil() as usize;
             while !stop_request.load(Ordering::SeqCst) {
-                io.writei(&playback_buffer.signal[..]).unwrap();
+                for split_index in 0..buffer_splits {
+                    let start_index = split_index * samples_per_write_op;
+                    let end_index = min(
+                        start_index + samples_per_write_op,
+                        playback_buffer.signal.len(),
+                    );
+                    if !stop_request.load(Ordering::SeqCst) {
+                        io.writei(&playback_buffer.signal[start_index..end_index])
+                            .unwrap();
+                    } else {
+                        break;
+                    }
+                }
             }
             stop_request.store(false, Ordering::SeqCst);
 

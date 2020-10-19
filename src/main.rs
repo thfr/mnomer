@@ -2,7 +2,7 @@ mod audiosignal;
 mod beatplayer;
 mod repl;
 
-use audiosignal::AudioSignal;
+use audiosignal::{AudioSignal, freqency_relative_semitone_equal_temperament};
 use beatplayer::BeatPlayer;
 use repl::Repl;
 use std::sync::{Arc, Mutex};
@@ -12,18 +12,26 @@ fn main() {
     let length = 0.05;
     let overtones = 1;
     let mut sine = AudioSignal::generate_tone(freq, length, overtones);
+    let mut accentuated_sine = AudioSignal::generate_tone(
+        freqency_relative_semitone_equal_temperament(freq, 5.0),
+        length,
+        overtones,
+    );
 
     sine.highpass_20hz();
     sine.lowpass_20khz();
+    accentuated_sine.highpass_20hz();
+    accentuated_sine.lowpass_20khz();
 
     let fade_time = 0.01;
     sine.fade_in_out(fade_time, fade_time).unwrap();
+    accentuated_sine.fade_in_out(fade_time, fade_time).unwrap();
 
     let beatplayer = Arc::new(Mutex::new(BeatPlayer::new(
         80,
         sine.clone(),
-        sine.clone(),
-        vec![true],
+        accentuated_sine.clone(),
+        vec![true, false, false, false],
     )));
 
     let bp_empty_string = beatplayer.clone();

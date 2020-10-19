@@ -8,8 +8,8 @@ pub type AudioSample = i16;
 pub mod settings {
     pub const SAMPLERATE: f64 = 48000.0;
     pub const ALSA_MIN_WRITE: f64 = 0.1; // [s]
-    pub const FADE_MIN_TIME: f64 = 0.01; // [s]
-    pub const FADE_MIN_PERCENTAGE: f64 = 0.3;
+    // pub const FADE_MIN_TIME: f64 = 0.01; // [s]
+    // pub const FADE_MIN_PERCENTAGE: f64 = 0.3;
     pub const SINE_MAX_AMPLITUDE: f64 = 0.75;
 }
 
@@ -17,8 +17,12 @@ pub fn time_in_samples(time: f64) -> usize {
     (time * settings::SAMPLERATE).round() as usize
 }
 
-pub fn samples_to_time(samples: usize) -> f64 {
-    samples as f64 / settings::SAMPLERATE
+// pub fn samples_to_time(samples: usize) -> f64 {
+//     samples as f64 / settings::SAMPLERATE
+// }
+
+pub fn freqency_relative_semitone_equal_temperament(base:f64, semitone: f64) -> f64 {
+   base * 2f64.powf(semitone / 12f64)
 }
 
 #[derive(Debug)]
