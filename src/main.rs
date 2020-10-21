@@ -2,12 +2,14 @@ mod audiosignal;
 mod beatplayer;
 mod repl;
 
-use audiosignal::{AudioSignal, freqency_relative_semitone_equal_temperament};
-use beatplayer::BeatPlayer;
+use audiosignal::{freqency_relative_semitone_equal_temperament, AudioSignal};
+use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
 use repl::Repl;
+use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 
 fn main() {
+    // Create the beat player and its necessary tones
     let freq = 440.0;
     let length = 0.05;
     let overtones = 1;
@@ -28,17 +30,28 @@ fn main() {
     accentuated_sine.fade_in_out(fade_time, fade_time).unwrap();
 
     let beatplayer = Arc::new(Mutex::new(BeatPlayer::new(
-        80,
+        100,
         sine.clone(),
         accentuated_sine.clone(),
-        vec![true, false, false, false],
+        BeatPattern {
+            0: vec![
+                BeatPatternType::Accent,
+                BeatPatternType::Beat,
+                BeatPatternType::Beat,
+                BeatPatternType::Beat,
+            ],
+        },
     )));
 
+    // Make shared references of the BeatPlayer to be moved into the command functions
+    // TODO: find a better way then making all the shared copies available like that
     let bp_empty_string = beatplayer.clone();
     let bp_start = beatplayer.clone();
     let bp_stop = beatplayer.clone();
     let bp_bpm = beatplayer.clone();
+    let bp_pattern = beatplayer.clone();
 
+    // create the read print evaluate loop with the commands and their associated functions
     let mut repl = Repl {
         commands: vec![
             (
@@ -46,8 +59,13 @@ fn main() {
                 Box::new(move |_| {
                     let mut bp = bp_empty_string.lock().unwrap();
                     if bp.is_playing() {
+                        println!("Stopping playback");
                         bp.stop();
                     } else {
+                        println!(
+                            "Starting playback with bpm {} and pattern {:?}",
+                            bp.bpm, bp.pattern
+                        );
                         match bp.play_beat() {
                             Ok(_) => (),
                             Err(_) => (),
@@ -60,6 +78,10 @@ fn main() {
                 "start".to_string(),
                 Box::new(move |_| {
                     let mut bp = bp_start.lock().unwrap();
+                    println!(
+                        "Starting playback with bpm {} and pattern {:?}",
+                        bp.bpm, bp.pattern
+                    );
                     if !bp.is_playing() {
                         match bp.play_beat() {
                             Ok(_) => (),
@@ -74,6 +96,7 @@ fn main() {
                 Box::new(move |_| {
                     let mut bp = bp_stop.lock().unwrap();
                     if bp.is_playing() {
+                        println!("Stopping playback");
                         bp.stop();
                     }
                     println!("");
@@ -93,6 +116,36 @@ fn main() {
                             Err(_) => println!("Could not parse \"{}\" to a value", bpm_str),
                         },
                         None => println!("No bpm value supplied"),
+                    }
+                    println!("");
+                }),
+            ),
+            (
+                "pattern".to_string(),
+                Box::new(move |args| {
+                    let print_help = || {
+                        println!(
+                            "{}\n{}\n{}\n",
+                            "Command usage: pattern <pattern>",
+                            "  <pattern> must be in the form of `[+|.|_]*`",
+                            "  `!` = accentuated beat  `+` = normal beat  `.` = pause"
+                        )
+                    };
+                    match args {
+                        Some(pattern_str) => {
+                            let mut bp = bp_pattern.lock().unwrap();
+                            match BeatPattern::try_from(pattern_str) {
+                                Ok(pattern) => match bp.set_pattern(pattern) {
+                                    Err(x) => println!("{}", x),
+                                    _ => (),
+                                },
+                                Err(x) => println!("{}", x),
+                            }
+                        }
+                        None => {
+                            println!("No pattern found");
+                            print_help()
+                        }
                     }
                     println!("");
                 }),

@@ -1,13 +1,53 @@
+// TODO: use a platform agnostic audio playback solution
 extern crate alsa;
 use alsa::pcm;
 
 use crate::audiosignal::{settings, time_in_samples, AudioSignal};
+use std::{
+    cmp::min,
+    convert::TryFrom,
+    sync::atomic::{AtomicBool, Ordering},
+    sync::{Arc, Mutex},
+    thread,
+};
 
-use std::cmp::min;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::vec::Vec;
+/// Metronome beat pattern types
+#[derive(Debug, PartialEq, Clone)]
+pub enum BeatPatternType {
+    Accent,
+    Beat,
+    Pause,
+}
+
+impl TryFrom<&char> for BeatPatternType {
+    type Error = String;
+
+    fn try_from(value: &char) -> Result<Self, Self::Error> {
+        match value {
+            '!' => Ok(BeatPatternType::Accent),
+            '+' => Ok(BeatPatternType::Beat),
+            '.' => Ok(BeatPatternType::Pause),
+            // anything else is an error
+            x => Err(format!("char \"{}\" is not an BeatPatternType", x)),
+        }
+    }
+}
+
+/// Metronome beat pattern
+#[derive(Debug, Clone)]
+pub struct BeatPattern(pub Vec<BeatPatternType>);
+
+impl TryFrom<&str> for BeatPattern {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let mut result = BeatPattern(Vec::with_capacity(value.len()));
+        for element in value.chars() {
+            result.0.push(BeatPatternType::try_from(&element)?);
+        }
+        Ok(result)
+    }
+}
 
 /// A metronome sound player that realizes the beat playback
 #[derive(Debug)]
@@ -15,11 +55,13 @@ pub struct BeatPlayer {
     pub bpm: u16,
     pub beat: AudioSignal,
     pub ac_beat: AudioSignal,
-    pub pattern: Vec<bool>,
+    pub pattern: BeatPattern,
 
     stop_request: Arc<AtomicBool>,
+
+    // TODO: join thread and mutex member if possible
     thread: Option<std::thread::JoinHandle<()>>,
-    starting: Mutex<()>,
+    start_stop_mtx: Mutex<()>,
 }
 
 impl ToString for BeatPlayer {
@@ -38,7 +80,7 @@ impl BeatPlayer {
         bpm: u16,
         beat: AudioSignal,
         ac_beat: AudioSignal,
-        pattern: Vec<bool>,
+        pattern: BeatPattern,
     ) -> BeatPlayer {
         BeatPlayer {
             bpm,
@@ -47,13 +89,13 @@ impl BeatPlayer {
             pattern,
             stop_request: Arc::new(AtomicBool::new(false)),
             thread: None,
-            starting: Mutex::new(()),
+            start_stop_mtx: Mutex::new(()),
         }
     }
 
     /// Check whether the beat playback is running or starting
     pub fn is_playing(&self) -> bool {
-        let lockguard = self.starting.try_lock();
+        let lockguard = self.start_stop_mtx.try_lock();
         if lockguard.is_err() || self.thread.is_some() {
             true
         } else {
@@ -63,20 +105,61 @@ impl BeatPlayer {
 
     /// Stop the beat playback
     pub fn stop(&mut self) {
+        let _mutex_guard = self
+            .start_stop_mtx
+            .lock()
+            .expect("Playback start mutex is poisoned, aborting");
         match self.thread {
             Some(_) => {
-                println!("Stopping playback");
                 let mut join_handle = None;
                 std::mem::swap(&mut join_handle, &mut self.thread);
                 self.stop_request.store(true, Ordering::SeqCst);
-                join_handle.unwrap().join().unwrap();
+                join_handle
+                    .unwrap()
+                    .join()
+                    .expect("join() on playback thread has failed");
                 self.thread = None;
             }
             None => (),
         }
     }
 
+    /// Set the beat pattern
+    ///
+    /// Stops and resumes playback if playback is running
+    pub fn set_pattern(&mut self, pattern: BeatPattern) -> Result<(), String> {
+        if pattern.0.is_empty() {
+            return Err("Beat pattern is empty, will not change anything".to_string());
+        }
+        let restart = if self.is_playing() {
+            self.stop();
+            true
+        } else {
+            false
+        };
+
+        let previous_pattern = pattern.0.clone();
+        self.pattern.0 = pattern.0;
+
+        if restart {
+            match self.play_beat() {
+                Err(_) => {
+                    self.pattern.0 = previous_pattern;
+                    return Err(
+                        "New pattern does not seem to work, returning to previous pattern"
+                            .to_string(),
+                    );
+                }
+                _ => (),
+            };
+        }
+
+        Ok(())
+    }
+
     /// Set the beats per minute
+    ///
+    /// Stops and resumes playback if playback is running
     pub fn set_bpm(&mut self, bpm: u16) -> bool {
         if bpm == 0 {
             return false;
@@ -108,17 +191,13 @@ impl BeatPlayer {
     /// Start the beat playback
     pub fn play_beat(&mut self) -> Result<(), alsa::Error> {
         // acquire playback lock
-        let lockguard = self.starting.try_lock();
+        let lockguard = self.start_stop_mtx.try_lock();
         if lockguard.is_err() || self.thread.is_some() {
             return Err(alsa::Error::unsupported(
                 "Cannot start beat playback, it is already running",
             ));
         }
 
-        println!(
-            "Starting playback with {} bpm with pattern {:?}",
-            self.bpm, self.pattern
-        );
         // Create the playback buffer over which the output loops
         // Use self.beat and silence to fill the buffer
         if self.beat.signal.is_empty() {
@@ -138,8 +217,7 @@ impl BeatPlayer {
             ));
         }
 
-        let ac_silence_samples =
-            samples_per_beat as isize - self.ac_beat.signal.len() as isize;
+        let ac_silence_samples = samples_per_beat as isize - self.ac_beat.signal.len() as isize;
         if ac_silence_samples < 0 {
             return Err(alsa::Error::unsupported(
                 "Accentuated beat to long to play at current bpm",
@@ -147,28 +225,53 @@ impl BeatPlayer {
         }
 
         // prepare the playback buffer
-        let ac_beat_count = self.pattern.iter().filter(|&x| *x == true).count();
-        let beat_count = self.pattern.iter().filter(|&x| *x == false).count();
+        let ac_beat_count = self
+            .pattern
+            .0
+            .iter()
+            .filter(|&x| *x == BeatPatternType::Accent)
+            .count();
+        let beat_count = self
+            .pattern
+            .0
+            .iter()
+            .filter(|&x| *x == BeatPatternType::Beat)
+            .count();
+        let pause_count = self
+            .pattern
+            .0
+            .iter()
+            .filter(|&x| *x == BeatPatternType::Pause)
+            .count();
         let playback_buffer_samples = ac_beat_count
             * (self.ac_beat.signal.len() + ac_silence_samples as usize)
-            + beat_count * (self.beat.signal.len() + silence_samples as usize);
+            + beat_count * (self.beat.signal.len() + silence_samples as usize)
+            + pause_count * (samples_per_beat as usize);
         let mut playback_buffer = AudioSignal {
             signal: Vec::with_capacity(playback_buffer_samples),
         };
-        for is_accentuated_beat in &self.pattern {
-            if *is_accentuated_beat {
-                playback_buffer
-                    .signal
-                    .extend_from_slice(&self.ac_beat.signal[0..]);
-                for _ in 0..ac_silence_samples {
-                    playback_buffer.signal.push(0);
+        for beat_type in &self.pattern.0 {
+            match beat_type {
+                BeatPatternType::Accent => {
+                    playback_buffer
+                        .signal
+                        .extend_from_slice(&self.ac_beat.signal[0..]);
+                    for _ in 0..ac_silence_samples {
+                        playback_buffer.signal.push(0);
+                    }
                 }
-            } else {
-                playback_buffer
-                    .signal
-                    .extend_from_slice(&self.beat.signal[0..]);
-                for _ in 0..silence_samples {
-                    playback_buffer.signal.push(0);
+                BeatPatternType::Beat => {
+                    playback_buffer
+                        .signal
+                        .extend_from_slice(&self.beat.signal[0..]);
+                    for _ in 0..silence_samples {
+                        playback_buffer.signal.push(0);
+                    }
+                }
+                BeatPatternType::Pause => {
+                    for _ in 0..samples_per_beat {
+                        playback_buffer.signal.push(0);
+                    }
                 }
             }
         }
@@ -211,6 +314,7 @@ impl BeatPlayer {
     }
 }
 
+/// Initialize the audio device
 fn init_audio() -> Result<alsa::pcm::PCM, alsa::Error> {
     let pcm_handle = pcm::PCM::new("default", alsa::Direction::Playback, false)?;
     {
