@@ -125,9 +125,9 @@ fn main() {
                 Box::new(move |args| {
                     let print_help = || {
                         println!(
-                            "{}\n{}\n{}\n",
+                            "{}\n{}\n{}",
                             "Command usage: pattern <pattern>",
-                            "  <pattern> must be in the form of `[+|.|_]*`",
+                            "  <pattern> must be in the form of `[!|+|.]*`",
                             "  `!` = accentuated beat  `+` = normal beat  `.` = pause"
                         )
                     };
