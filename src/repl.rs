@@ -1,13 +1,15 @@
 use std::io::{self, Write};
 use std::string::String;
+use std::sync::Mutex;
 
-pub struct Repl {
-    pub commands: Vec<(String, Box<dyn FnMut(Option<&str>)>)>,
+pub struct Repl<T> {
+    pub app: Mutex<T>,
+    pub commands: Vec<(String, Box<dyn FnMut(Option<&str>, &mut T)>)>,
     pub exit: bool, // TODO: make this accessible from the outside
     pub prompt: String,
 }
 
-impl Repl {
+impl<T> Repl<T> {
     /// Make the REPL go until self.exit is set to true
     pub fn process(&mut self) {
         // TODO: make this function testable by splitting it put
@@ -47,10 +49,11 @@ impl Repl {
                     // check if parsed command is in self.commands and execute its function
                     for (cmd, function) in &mut self.commands {
                         if parsed_cmd == cmd {
+                            let mut app = self.app.lock().unwrap();
                             if !args.is_empty() {
-                                function(Some(args));
+                                function(Some(args), &mut app);
                             } else {
-                                function(None);
+                                function(None, &mut app);
                             }
                             break;
                         };
