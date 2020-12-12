@@ -137,7 +137,7 @@ fn main() {
                 }),
             ),
         ],
-        exit: false,
+        exit: false.into(),
         prompt: "♩♩♩♩: ".to_string(),
     };
     repl.process();
