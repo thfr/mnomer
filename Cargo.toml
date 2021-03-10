@@ -5,4 +5,4 @@ authors = ["Thomas Frank <thfr.git@e.mail.de>"]
 edition = "2018"
 
 [dependencies]
-alsa = "0.4.2"
+alsa = "0.4.3"

@@ -24,24 +24,11 @@ impl<T> Repl<T> {
             io_out.flush().unwrap();
             let mut input = String::new();
             match io_in.read_line(&mut input) {
-                Ok(nchars) => {
+                Ok(_) => {
                     // remove every whitespace from left, iterate over the lines, take only the first line
-                    let (parsed_cmd, args) = if nchars == 0 {
-                        ("", "")
-                    } else {
-                        let trimmed_input = match input.trim_start().lines().next() {
-                            Some(string) => string,
-                            None => "",
-                        };
-                        match trimmed_input.find(char::is_whitespace) {
-                            Some(pos) => (
-                                &trimmed_input[0..pos],
-                                trimmed_input[pos + 1..].trim_start(),
-                            ),
-                            None => (trimmed_input, ""),
-                        }
-                    };
-                    match parsed_cmd {
+                    let (parsed_cmd, args) = parse_cmd(input);
+
+                    match parsed_cmd.as_str() {
                         "quit" | "exit" => {
                             self.exit.store(true, Ordering::SeqCst);
                             continue;
@@ -50,9 +37,9 @@ impl<T> Repl<T> {
                     }
                     // check if parsed command is in self.commands and execute its function
                     for (cmd, function) in &mut self.commands {
-                        if parsed_cmd == cmd {
+                        if parsed_cmd == *cmd {
                             if !args.is_empty() {
-                                function(Some(args), &mut app);
+                                function(Some(args.as_str()), &mut app);
                             } else {
                                 function(None, &mut app);
                             }
@@ -62,6 +49,24 @@ impl<T> Repl<T> {
                 }
                 Err(error) => println!("error: {}", error),
             }
+        }
+    }
+}
+
+fn parse_cmd(input: String) -> (String, String) {
+    if input.len() == 0 {
+        (String::from(""), String::from(""))
+    } else {
+        let trimmed_input = match input.trim_start().lines().next() {
+            Some(string) => string,
+            None => "",
+        };
+        match trimmed_input.find(char::is_whitespace) {
+            Some(pos) => (
+                String::from(&trimmed_input[0..pos]),
+                String::from(trimmed_input[pos + 1..].trim_start()),
+            ),
+            None => (String::from(trimmed_input), String::from("")),
         }
     }
 }
