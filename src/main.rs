@@ -9,7 +9,7 @@ use std::convert::TryFrom;
 use std::sync::Mutex;
 
 fn main() {
-    // Create the beat player and its necessary tones
+    // Create the tones for the beatplayer
     let freq = 440.0;
     let length = 0.05;
     let overtones = 1;
@@ -20,15 +20,18 @@ fn main() {
         overtones,
     );
 
+    // filter tones
     sine.highpass_20hz();
     sine.lowpass_20khz();
     accentuated_sine.highpass_20hz();
     accentuated_sine.lowpass_20khz();
 
+    // fade in and out to avoid click and pop noises
     let fade_time = 0.01;
     sine.fade_in_out(fade_time, fade_time).unwrap();
     accentuated_sine.fade_in_out(fade_time, fade_time).unwrap();
 
+    // beatplayer takes care of generating the beat and its playback
     let beatplayer = Mutex::new(BeatPlayer::new(
         100,
         sine.clone(),

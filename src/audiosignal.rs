@@ -7,9 +7,6 @@ pub type AudioSample = i16;
 
 pub mod settings {
     pub const SAMPLERATE: f64 = 48000.0;
-    pub const ALSA_MIN_WRITE: f64 = 0.1; // [s]
-    // pub const FADE_MIN_TIME: f64 = 0.01; // [s]
-    // pub const FADE_MIN_PERCENTAGE: f64 = 0.3;
     pub const SINE_MAX_AMPLITUDE: f64 = 0.75;
 }
 
@@ -17,9 +14,10 @@ pub fn time_in_samples(time: f64) -> usize {
     (time * settings::SAMPLERATE).round() as usize
 }
 
-// pub fn samples_to_time(samples: usize) -> f64 {
-//     samples as f64 / settings::SAMPLERATE
-// }
+#[allow(dead_code)]
+pub fn samples_to_time(samples: usize) -> f64 {
+    samples as f64 / settings::SAMPLERATE
+}
 
 pub fn freqency_relative_semitone_equal_temperament(base:f64, semitone: f64) -> f64 {
    base * 2f64.powf(semitone / 12f64)
@@ -28,12 +26,13 @@ pub fn freqency_relative_semitone_equal_temperament(base:f64, semitone: f64) -> 
 #[derive(Debug)]
 pub struct AudioSignal {
     pub signal: Vec<AudioSample>,
+    pub index: usize,
 }
 
 impl Clone for AudioSignal {
     fn clone(&self) -> Self {
         AudioSignal {
-            signal: self.signal.clone(),
+            signal: self.signal.clone(), index: 0
         }
     }
 }
@@ -44,6 +43,7 @@ impl Add for AudioSignal {
     fn add(self, other: AudioSignal) -> AudioSignal {
         let mut new_as = AudioSignal {
             signal: self.signal.to_vec(),
+            index: 0,
         };
         new_as += other;
         new_as
@@ -67,6 +67,7 @@ impl Mul<f64> for AudioSignal {
     fn mul(self, factor: f64) -> AudioSignal {
         let mut new_as = AudioSignal {
             signal: self.signal.to_vec(),
+            index: 0,
         };
         new_as *= factor;
         new_as
@@ -102,6 +103,7 @@ impl AudioSignal {
         let num_samples = (length * sample_rate).round() as usize;
         let mut audio_signal = AudioSignal {
             signal: Vec::with_capacity(num_samples),
+            index: 0,
         };
 
         for sam in 0..num_samples {
@@ -194,5 +196,9 @@ impl AudioSignal {
                 (xv[0] + xv[2]) + 2.0 * xv[1] + (-0.4775922501 * yv[0]) + (-1.2796324250 * yv[1]);
             *sample = yv[2].round() as AudioSample;
         }
+    }
+    pub fn get_next_sample(&mut self) -> AudioSample {
+        self.index = (self.index + 1) % self.signal.len();
+        self.signal[self.index as usize]
     }
 }

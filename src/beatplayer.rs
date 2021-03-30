@@ -1,15 +1,11 @@
-// TODO: use a platform agnostic audio playback solution
-extern crate alsa;
-use alsa::pcm;
-
-use crate::audiosignal::{settings, time_in_samples, AudioSignal};
-use std::{
-    cmp::min,
-    convert::TryFrom,
-    sync::atomic::{AtomicBool, Ordering},
-    sync::{Arc, Mutex},
-    thread,
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    OutputCallbackInfo, SampleRate, Stream,
 };
+use cpal::{SampleFormat, StreamConfig};
+
+use crate::audiosignal::{settings, AudioSignal};
+use std::{convert::TryFrom, sync::Mutex};
 
 /// Metronome beat pattern types
 #[derive(Debug, PartialEq, Clone)]
@@ -50,17 +46,13 @@ impl TryFrom<&str> for BeatPattern {
 }
 
 /// A metronome sound player that realizes the beat playback
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct BeatPlayer {
     pub bpm: u16,
     pub beat: AudioSignal,
     pub ac_beat: AudioSignal,
     pub pattern: BeatPattern,
-
-    stop_request: Arc<AtomicBool>,
-
-    // TODO: join thread and mutex member if possible
-    thread: Option<std::thread::JoinHandle<()>>,
+    stream: Option<Stream>,
     start_stop_mtx: Mutex<()>,
 }
 
@@ -87,20 +79,15 @@ impl BeatPlayer {
             beat,
             ac_beat,
             pattern,
-            stop_request: Arc::new(AtomicBool::new(false)),
-            thread: None,
+            stream: None,
             start_stop_mtx: Mutex::new(()),
         }
     }
 
     /// Check whether the beat playback is running or starting
     pub fn is_playing(&self) -> bool {
-        let lockguard = self.start_stop_mtx.try_lock();
-        if lockguard.is_err() || self.thread.is_some() {
-            true
-        } else {
-            false
-        }
+        let _lockguard = self.start_stop_mtx.try_lock();
+        self.stream.is_some()
     }
 
     /// Stop the beat playback
@@ -109,19 +96,11 @@ impl BeatPlayer {
             .start_stop_mtx
             .lock()
             .expect("Playback start mutex is poisoned, aborting");
-        match self.thread {
-            Some(_) => {
-                let mut join_handle = None;
-                std::mem::swap(&mut join_handle, &mut self.thread);
-                self.stop_request.store(true, Ordering::SeqCst);
-                join_handle
-                    .unwrap()
-                    .join()
-                    .expect("join() on playback thread has failed");
-                self.thread = None;
-            }
+        match self.stream.as_mut() {
+            Some(x) => x.pause().expect("Error during pause"),
             None => (),
-        }
+        };
+        self.stream = None;
     }
 
     /// Set the beat pattern
@@ -188,67 +167,47 @@ impl BeatPlayer {
         true
     }
 
-    /// Start the beat playback
-    pub fn play_beat(&mut self) -> Result<(), alsa::Error> {
-        // acquire playback lock
-        let lockguard = self.start_stop_mtx.try_lock();
-        if lockguard.is_err() || self.thread.is_some() {
-            return Err(alsa::Error::unsupported(
-                "Cannot start beat playback, it is already running",
-            ));
-        }
-
+    fn _fill_playback_buffer(&self) -> Result<AudioSignal, &'static str> {
         // Create the playback buffer over which the output loops
         // Use self.beat and silence to fill the buffer
         if self.beat.signal.is_empty() {
-            return Err(alsa::Error::unsupported("No beat to play"));
-        }
-
-        if self.thread.is_some() {
-            return Err(alsa::Error::unsupported("Playback is already running"));
+            return Err("No beat to play");
         }
 
         let samples_per_beat = ((60.0 * settings::SAMPLERATE) / self.bpm as f64).round() as isize;
 
         let silence_samples = samples_per_beat as isize - self.beat.signal.len() as isize;
         if silence_samples < 0 {
-            return Err(alsa::Error::unsupported(
-                "Beat to long to play at current bpm",
-            ));
+            return Err("Beat to long to play at current bpm");
         }
 
         let ac_silence_samples = samples_per_beat as isize - self.ac_beat.signal.len() as isize;
         if ac_silence_samples < 0 {
-            return Err(alsa::Error::unsupported(
-                "Accentuated beat to long to play at current bpm",
-            ));
+            return Err("Accentuated beat to long to play at current bpm");
         }
 
         // prepare the playback buffer
-        let ac_beat_count = self
-            .pattern
-            .0
-            .iter()
-            .filter(|&x| *x == BeatPatternType::Accent)
-            .count();
-        let beat_count = self
-            .pattern
-            .0
-            .iter()
-            .filter(|&x| *x == BeatPatternType::Beat)
-            .count();
-        let pause_count = self
-            .pattern
-            .0
-            .iter()
-            .filter(|&x| *x == BeatPatternType::Pause)
-            .count();
+        let (ac_beat_count, beat_count, pause_count) = {
+            let mut a = 0;
+            let mut b = 0;
+            let mut c = 0;
+            for bpt in &self.pattern.0 {
+                match bpt {
+                    BeatPatternType::Accent => a += 1,
+                    BeatPatternType::Beat => b += 1,
+                    BeatPatternType::Pause => c += 1,
+                }
+            }
+            (a, b, c)
+        };
         let playback_buffer_samples = ac_beat_count
             * (self.ac_beat.signal.len() + ac_silence_samples as usize)
             + beat_count * (self.beat.signal.len() + silence_samples as usize)
             + pause_count * (samples_per_beat as usize);
+
         let mut playback_buffer = AudioSignal {
             signal: Vec::with_capacity(playback_buffer_samples),
+            index: 0,
         };
         for beat_type in &self.pattern.0 {
             match beat_type {
@@ -275,59 +234,63 @@ impl BeatPlayer {
                 }
             }
         }
+        Ok(playback_buffer)
+    }
 
-        let stop_request = Arc::clone(&self.stop_request);
-        self.thread = Some(thread::spawn(move || {
-            let pcm_handle = init_audio().unwrap();
-            let io = pcm_handle.io_i16().unwrap();
+    pub fn play_beat(&mut self) -> Result<(), &str> {
+        let lockguard = self.start_stop_mtx.try_lock();
 
-            if pcm_handle.state() != pcm::State::Running {
-                pcm_handle.start().unwrap();
-            };
+        if lockguard.is_err() {
+            return Err("Cannot start beat playback, it is already running");
+        }
 
-            // make the write operations to the ALSA device independent from the size of the
-            // playback buffer by only giving fixed size slices to `io.writei`
-            let samples_per_write_op = time_in_samples(0.1);
-            let buffer_splits =
-                (playback_buffer.signal.len() as f64 / samples_per_write_op as f64).ceil() as usize;
-            while !stop_request.load(Ordering::SeqCst) {
-                for split_index in 0..buffer_splits {
-                    let start_index = split_index * samples_per_write_op;
-                    let end_index = min(
-                        start_index + samples_per_write_op,
-                        playback_buffer.signal.len(),
-                    );
-                    if !stop_request.load(Ordering::SeqCst) {
-                        io.writei(&playback_buffer.signal[start_index..end_index])
-                            .unwrap();
-                    } else {
-                        break;
-                    }
-                }
+        let mut playback_buffer = match self._fill_playback_buffer() {
+            Ok(audio_signal) => audio_signal,
+            Err(msg) => return Err(msg),
+        };
+
+        let samples_callback = move |data: &mut [i16], _: &OutputCallbackInfo| {
+            for sample in data.iter_mut() {
+                *sample = playback_buffer.get_next_sample();
             }
-            stop_request.store(false, Ordering::SeqCst);
+        };
+        self.stream = match init_audio_cpal(samples_callback) {
+            Ok(x) => Some(x),
+            Err(y) => return Err(y),
+        };
 
-            pcm_handle.drain().unwrap();
-        }));
+        match self.stream.as_mut().unwrap().play() {
+            Ok(_) => (),
+            Err(_) => return Err("Something went wrong with beat playback"),
+        };
 
+        // everything was fine fine
         Ok(())
     }
 }
 
-/// Initialize the audio device
-fn init_audio() -> Result<alsa::pcm::PCM, alsa::Error> {
-    let pcm_handle = pcm::PCM::new("default", alsa::Direction::Playback, false)?;
-    {
-        let pcm_hw_params = pcm::HwParams::any(&pcm_handle)?;
-        pcm_hw_params.set_format(pcm::Format::s16())?;
-        pcm_hw_params.set_access(pcm::Access::RWInterleaved)?;
-        pcm_hw_params.set_channels(1)?;
-        pcm_hw_params.set_rate(settings::SAMPLERATE.round() as u32, alsa::ValueOr::Nearest)?;
-        pcm_hw_params.set_rate_resample(true)?;
-        let period_size = (settings::SAMPLERATE * settings::ALSA_MIN_WRITE).round() as i64;
-        pcm_hw_params.set_period_size_near(period_size, alsa::ValueOr::Nearest)?;
-        pcm_hw_params.set_buffer_size_near(2 * period_size)?;
-        pcm_handle.hw_params(&pcm_hw_params)?;
+fn init_audio_cpal<T>(samples_callback: T) -> Result<Stream, &'static str>
+where
+    T: FnMut(&mut [i16], &OutputCallbackInfo) + Send + 'static,
+{
+    let host = cpal::default_host();
+    let device = host.default_output_device().unwrap();
+    let err_fn = |err| eprintln!("an error occurred on the output audio stream: {}", err);
+
+    let mut config_option = None;
+    for conf in device.supported_output_configs().unwrap() {
+        if conf.sample_format() == SampleFormat::I16 {
+            config_option = Some(conf.with_sample_rate(SampleRate(settings::SAMPLERATE as u32)));
+            break;
+        }
     }
-    Ok(pcm_handle)
+    let config = match config_option {
+        Some(x) => x,
+        None => return Err("Could not find audio configuration of 48 kHz sample rate and audio sample format int 16"),
+    };
+
+    let config: StreamConfig = config.into();
+    Ok(device
+        .build_output_stream(&config, samples_callback, err_fn)
+        .unwrap())
 }
