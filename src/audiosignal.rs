@@ -3,8 +3,6 @@ use std::i16;
 
 use std::ops::*;
 
-pub type AudioSample = i16;
-
 pub mod settings {
     pub const SAMPLERATE: f64 = 48000.0;
     pub const SINE_MAX_AMPLITUDE: f64 = 0.75;
@@ -15,32 +13,74 @@ pub fn time_in_samples(time: f64) -> usize {
 }
 
 #[allow(dead_code)]
+/// Convert number of samples to seconds
 pub fn samples_to_time(samples: usize) -> f64 {
     samples as f64 / settings::SAMPLERATE
 }
 
-pub fn freqency_relative_semitone_equal_temperament(base:f64, semitone: f64) -> f64 {
-   base * 2f64.powf(semitone / 12f64)
+pub fn freqency_relative_semitone_equal_temperament(base: f64, semitone: f64) -> f64 {
+    base * 2f64.powf(semitone / 12f64)
 }
 
 #[derive(Debug)]
-pub struct AudioSignal {
-    pub signal: Vec<AudioSample>,
+pub struct AudioSignal<T> {
+    pub signal: Vec<T>,
     pub index: usize,
 }
 
-impl Clone for AudioSignal {
-    fn clone(&self) -> Self {
+impl Into<AudioSignal<u16>> for AudioSignal<f32> {
+    fn into(self) -> AudioSignal<u16> {
+        let mut audio: Vec<u16> = Vec::with_capacity(self.signal.len());
+        for sample in self.signal.into_iter() {
+            let saturated_sample = if sample > 1f32 {
+                1f32
+            } else if sample < -1f32 {
+                -1f32
+            } else {
+                sample
+            };
+            audio.push((saturated_sample * (u16::MAX / 2) as f32).round() as u16);
+        }
         AudioSignal {
-            signal: self.signal.clone(), index: 0
+            signal: audio,
+            index: 0,
         }
     }
 }
 
-impl Add for AudioSignal {
-    type Output = AudioSignal;
+impl Into<AudioSignal<i16>> for AudioSignal<f32> {
+    fn into(self) -> AudioSignal<i16> {
+        let mut audio: Vec<i16> = Vec::with_capacity(self.signal.len());
+        for sample in self.signal.into_iter() {
+            let saturated_sample = if sample > 1f32 {
+                1f32
+            } else if sample < -1f32 {
+                -1f32
+            } else {
+                sample
+            };
+            audio.push((saturated_sample * i16::MAX as f32).round() as i16);
+        }
+        AudioSignal {
+            signal: audio,
+            index: 0,
+        }
+    }
+}
 
-    fn add(self, other: AudioSignal) -> AudioSignal {
+impl Clone for AudioSignal<f32> {
+    fn clone(&self) -> Self {
+        AudioSignal {
+            signal: self.signal.clone(),
+            index: 0,
+        }
+    }
+}
+
+impl Add for AudioSignal<f32> {
+    type Output = AudioSignal<f32>;
+
+    fn add(self, other: AudioSignal<f32>) -> AudioSignal<f32> {
         let mut new_as = AudioSignal {
             signal: self.signal.to_vec(),
             index: 0,
@@ -50,21 +90,21 @@ impl Add for AudioSignal {
     }
 }
 
-impl AddAssign for AudioSignal {
-    fn add_assign(&mut self, other: AudioSignal) {
+impl AddAssign for AudioSignal<f32> {
+    fn add_assign(&mut self, other: AudioSignal<f32>) {
         if self.signal.len() < other.signal.len() {
-            self.signal.resize(other.signal.len(), 0);
+            self.signal.resize(other.signal.len(), self.signal[0]);
         }
         for idx in 0..other.signal.len() {
-            self.signal[idx] = self.signal[idx].saturating_add(other.signal[idx]);
+            self.signal[idx] += other.signal[idx];
         }
     }
 }
 
-impl Mul<f64> for AudioSignal {
-    type Output = AudioSignal;
+impl Mul<f64> for AudioSignal<f32> {
+    type Output = AudioSignal<f32>;
 
-    fn mul(self, factor: f64) -> AudioSignal {
+    fn mul(self, factor: f64) -> AudioSignal<f32> {
         let mut new_as = AudioSignal {
             signal: self.signal.to_vec(),
             index: 0,
@@ -74,16 +114,16 @@ impl Mul<f64> for AudioSignal {
     }
 }
 
-impl MulAssign<f64> for AudioSignal {
+impl MulAssign<f64> for AudioSignal<f32> {
     fn mul_assign(&mut self, factor: f64) {
         for sample in self.signal.iter_mut() {
-            *sample = ((*sample) as f64 * factor).round() as AudioSample;
+            *sample = ((*sample) as f64 * factor) as f32;
         }
     }
 }
 
-impl AudioSignal {
-    pub fn generate_tone(freq: f64, length: f64, overtones: u8) -> AudioSignal {
+impl AudioSignal<f32> {
+    pub fn generate_tone(freq: f64, length: f64, overtones: u8) -> AudioSignal<f32> {
         // base signal
         let mut signal = AudioSignal::generate_sine(freq, length);
 
@@ -95,10 +135,10 @@ impl AudioSignal {
         signal
     }
 
-    fn generate_sine(freq: f64, length: f64) -> AudioSignal {
+    fn generate_sine(freq: f64, length: f64) -> AudioSignal<f32> {
         let pi = f64::consts::PI;
         let sample_rate = settings::SAMPLERATE;
-        let amplitude = settings::SINE_MAX_AMPLITUDE * AudioSample::max_value() as f64;
+        let amplitude = settings::SINE_MAX_AMPLITUDE as f64;
 
         let num_samples = (length * sample_rate).round() as usize;
         let mut audio_signal = AudioSignal {
@@ -109,7 +149,7 @@ impl AudioSignal {
         for sam in 0..num_samples {
             let x = sam as f64;
             let value = amplitude * (x * 2.0 * pi * freq / sample_rate).sin();
-            audio_signal.signal.push(value.round() as AudioSample);
+            audio_signal.signal.push(value as f32);
         }
         audio_signal
     }
@@ -139,7 +179,7 @@ impl AudioSignal {
         let mut fade_in_factor = start_value;
         for index in 0..fade_in_samples {
             let sample = self.signal[index] as f64;
-            self.signal[index] = (sample * fade_in_factor).round() as AudioSample;
+            self.signal[index] = (sample * fade_in_factor) as f32;
             fade_in_factor *= fade_in_ratio;
         }
 
@@ -147,7 +187,7 @@ impl AudioSignal {
         let mut fade_out_factor = 1.0;
         for index in (self.signal.len() - fade_out_samples)..self.signal.len() {
             let sample = self.signal[index] as f64;
-            self.signal[index] = (sample * fade_out_factor).round() as AudioSample;
+            self.signal[index] = (sample * fade_out_factor) as f32;
             fade_out_factor *= fade_out_ratio;
         }
 
@@ -172,7 +212,7 @@ impl AudioSignal {
             yv[1] = yv[2];
             yv[2] =
                 (xv[0] + xv[2]) - 2.0 * xv[1] + (-0.9963044430 * yv[0]) + (1.9962976018 * yv[1]);
-            *sample = yv[2].round() as AudioSample;
+            *sample = yv[2] as f32;
         }
     }
 
@@ -194,10 +234,13 @@ impl AudioSignal {
             yv[1] = yv[2];
             yv[2] =
                 (xv[0] + xv[2]) + 2.0 * xv[1] + (-0.4775922501 * yv[0]) + (-1.2796324250 * yv[1]);
-            *sample = yv[2].round() as AudioSample;
+            *sample = yv[2] as f32;
         }
     }
-    pub fn get_next_sample(&mut self) -> AudioSample {
+}
+
+impl<T: Copy> AudioSignal<T> {
+    pub fn get_next_sample(&mut self) -> T {
         self.index = (self.index + 1) % self.signal.len();
         self.signal[self.index as usize]
     }

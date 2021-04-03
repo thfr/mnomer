@@ -63,7 +63,7 @@ fn main() {
                         );
                         match bp.play_beat() {
                             Ok(_) => (),
-                            Err(_) => (),
+                            Err(y) => println!("{}", y),
                         };
                     }
                     println!("");
@@ -79,7 +79,7 @@ fn main() {
                     if !bp.is_playing() {
                         match bp.play_beat() {
                             Ok(_) => (),
-                            Err(_) => (),
+                            Err(y) => println!("{}", y),
                         };
                     }
                     println!("");
