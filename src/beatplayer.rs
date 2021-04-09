@@ -1,8 +1,10 @@
-use cpal::{SampleRate, Stream, SupportedStreamConfigRange, traits::{DeviceTrait, HostTrait, StreamTrait}};
-use cpal::{BufferSize, SampleFormat, StreamConfig};
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    SampleFormat, Stream,
+};
 
-use crate::audiosignal::{settings, AudioSignal};
-use std::{convert::TryFrom, sync::Mutex};
+use crate::audiosignal::{samples_to_time, AudioSignal, ToneConfiguration};
+use std::{convert::TryFrom, f64, sync::Mutex};
 
 /// Metronome beat pattern types
 #[derive(Debug, PartialEq, Clone)]
@@ -46,8 +48,8 @@ impl TryFrom<&str> for BeatPattern {
 // #[derive(Debug)]
 pub struct BeatPlayer {
     pub bpm: u16,
-    pub beat: AudioSignal<f32>,
-    pub ac_beat: AudioSignal<f32>,
+    pub beat: ToneConfiguration,
+    pub ac_beat: ToneConfiguration,
     pub pattern: BeatPattern,
     stream: Option<Stream>,
     start_stop_mtx: Mutex<()>,
@@ -67,8 +69,8 @@ impl ToString for BeatPlayer {
 impl BeatPlayer {
     pub fn new(
         bpm: u16,
-        beat: AudioSignal<f32>,
-        ac_beat: AudioSignal<f32>,
+        beat: ToneConfiguration,
+        ac_beat: ToneConfiguration,
         pattern: BeatPattern,
     ) -> BeatPlayer {
         BeatPlayer {
@@ -164,21 +166,38 @@ impl BeatPlayer {
         true
     }
 
-    fn _fill_playback_buffer(&self) -> Result<AudioSignal<f32>, &'static str> {
+    fn _fill_playback_buffer(
+        &self,
+        sample_rate: f64,
+        channels: usize,
+    ) -> Result<AudioSignal<f32>, &'static str> {
         // Create the playback buffer over which the output loops
         // Use self.beat and silence to fill the buffer
-        if self.beat.signal.is_empty() {
-            return Err("No beat to play");
+        if self.beat.frequency <= 0.0 || self.ac_beat.frequency <= 0.0 {
+            return Err("Tone Configuration not applicable");
         }
+        let mut beat = AudioSignal::generate_tone(&self.beat);
+        let mut ac_beat = AudioSignal::generate_tone(&self.ac_beat);
 
-        let samples_per_beat = ((60.0 * settings::SAMPLERATE) / self.bpm as f64).round() as isize;
+        // filter tones
+        beat.highpass_20hz();
+        beat.lowpass_20khz();
+        ac_beat.highpass_20hz();
+        ac_beat.lowpass_20khz();
 
-        let silence_samples = samples_per_beat as isize - self.beat.signal.len() as isize;
+        // fade in and out to avoid click and pop noises
+        let fade_time = 0.01;
+        beat.fade_in_out(fade_time, fade_time).unwrap();
+        ac_beat.fade_in_out(fade_time, fade_time).unwrap();
+
+        let samples_per_beat = ((60.0 * sample_rate) / self.bpm as f64).round() as isize;
+
+        let silence_samples = samples_per_beat as isize - beat.signal.len() as isize;
         if silence_samples < 0 {
             return Err("Beat to long to play at current bpm");
         }
 
-        let ac_silence_samples = samples_per_beat as isize - self.ac_beat.signal.len() as isize;
+        let ac_silence_samples = samples_per_beat as isize - ac_beat.signal.len() as isize;
         if ac_silence_samples < 0 {
             return Err("Accentuated beat to long to play at current bpm");
         }
@@ -199,28 +218,33 @@ impl BeatPlayer {
         };
 
         let playback_buffer_samples = ac_beat_count
-            * (self.ac_beat.signal.len() + ac_silence_samples as usize)
-            + beat_count * (self.beat.signal.len() + silence_samples as usize)
+            * (ac_beat.signal.len() + ac_silence_samples as usize)
+            + beat_count * (beat.signal.len() + silence_samples as usize)
             + pause_count * (samples_per_beat as usize);
 
         let mut playback_buffer = AudioSignal {
             signal: Vec::with_capacity(playback_buffer_samples),
             index: 0,
+            tone: ToneConfiguration {
+                frequency: 0.0,
+                sample_rate,
+                length: samples_to_time(playback_buffer_samples, sample_rate),
+                overtones: 0,
+                channels: 1,
+            },
         };
         for beat_type in &self.pattern.0 {
             match beat_type {
                 BeatPatternType::Accent => {
                     playback_buffer
                         .signal
-                        .extend_from_slice(&self.ac_beat.signal[0..]);
+                        .extend_from_slice(&ac_beat.signal[0..]);
                     for _ in 0..ac_silence_samples {
                         playback_buffer.signal.push(0f32);
                     }
                 }
                 BeatPatternType::Beat => {
-                    playback_buffer
-                        .signal
-                        .extend_from_slice(&self.beat.signal[0..]);
+                    playback_buffer.signal.extend_from_slice(&beat.signal[0..]);
                     for _ in 0..silence_samples {
                         playback_buffer.signal.push(0f32);
                     }
@@ -232,6 +256,15 @@ impl BeatPlayer {
                 }
             }
         }
+
+        playback_buffer = {
+            if channels > 1 {
+                playback_buffer.channels_from_mono(channels).unwrap()
+            } else {
+                playback_buffer
+            }
+        };
+
         Ok(playback_buffer)
     }
 
@@ -242,12 +275,32 @@ impl BeatPlayer {
             return Err("Cannot start beat playback, it is already running".into());
         }
 
-        let playback_buffer = match self._fill_playback_buffer() {
+        let audio_host = cpal::default_host();
+        let device = match audio_host.default_output_device() {
+            Some(x) => x,
+            None => return Err(format!("No audio device for {:?}", audio_host.id())),
+        };
+        let default_config = {
+            match device.default_output_config() {
+                Ok(x) => x,
+                Err(y) => {
+                    return Err(format!(
+                        "No output configuration on default output device: {:?}",
+                        y
+                    ))
+                }
+            }
+        };
+
+        let playback_buffer = match self._fill_playback_buffer(
+            default_config.sample_rate().0 as f64,
+            default_config.channels() as usize,
+        ) {
             Ok(audio_signal) => audio_signal,
             Err(msg) => return Err(msg.into()),
         };
 
-        self.stream = match init_audio_cpal(playback_buffer) {
+        self.stream = match create_cpal_stream(device, default_config, playback_buffer) {
             Ok(x) => Some(x),
             Err(y) => return Err(y),
         };
@@ -262,53 +315,14 @@ impl BeatPlayer {
     }
 }
 
-fn init_audio_cpal(playback_buffer: AudioSignal<f32>) -> Result<Stream, String> {
-    let host = cpal::default_host();
-    let device = host.default_output_device().unwrap();
+fn create_cpal_stream(
+    device: cpal::Device,
+    config: cpal::SupportedStreamConfig,
+    playback_buffer: AudioSignal<f32>,
+) -> Result<Stream, String> {
+    let sampletype = config.sample_format();
     let err_fn = |err| eprintln!("an error occurred on the output audio stream: {}", err);
-
-    let supported_output_configs = match device.supported_output_configs() {
-        Ok(x) => x.collect::<Vec<SupportedStreamConfigRange>>(),
-        Err(error) => {
-            return Err(format!(
-                "Default audio output device has no supported configurations: {:?}",
-                error
-            ))
-        }
-    };
-
-    // TODO: support other samplerates than 48kHz
-    let supported_sample_types: Vec<SampleFormat> = supported_output_configs.iter()
-        .filter(|x| {
-            x.min_sample_rate().0 as f64 <= settings::SAMPLERATE
-                && settings::SAMPLERATE <= x.max_sample_rate().0 as f64
-        })
-        .map(|x| x.sample_format())
-        .collect();
-
-    if supported_sample_types.is_empty() {
-        let mut supported_configurations_str = String::new();
-        for config in supported_output_configs.iter() {
-            supported_configurations_str += format!("{:?}\n", config).as_str();
-        }
-        return Err(format!(
-            "Default audio device not supported: only following configurations are supported\n{}", supported_configurations_str
-        ));
-    }
-
-    let sampletype = if supported_sample_types.contains(&SampleFormat::F32) {
-        SampleFormat::F32
-    } else if supported_sample_types.contains(&SampleFormat::I16) {
-        SampleFormat::I16
-    } else {
-        SampleFormat::U16
-    };
-
-    let my_config = StreamConfig {
-        channels: 1,
-        sample_rate: SampleRate(settings::SAMPLERATE as u32),
-        buffer_size: BufferSize::Default,
-    };
+    let my_config = config.into();
 
     //TODO: unify these lambdas somehow
     let stream = match sampletype {

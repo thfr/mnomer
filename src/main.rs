@@ -2,7 +2,7 @@ mod audiosignal;
 mod beatplayer;
 mod repl;
 
-use audiosignal::{freqency_relative_semitone_equal_temperament, AudioSignal};
+use audiosignal::{freqency_relative_semitone_equal_temperament, ToneConfiguration};
 use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
 use repl::Repl;
 use std::convert::TryFrom;
@@ -13,23 +13,17 @@ fn main() {
     let freq = 440.0;
     let length = 0.05;
     let overtones = 1;
-    let mut sine = AudioSignal::generate_tone(freq, length, overtones);
-    let mut accentuated_sine = AudioSignal::generate_tone(
-        freqency_relative_semitone_equal_temperament(freq, 5.0),
+    let sine = ToneConfiguration {
+        frequency: freq,
+        sample_rate: 48000.0,
         length,
         overtones,
-    );
-
-    // filter tones
-    sine.highpass_20hz();
-    sine.lowpass_20khz();
-    accentuated_sine.highpass_20hz();
-    accentuated_sine.lowpass_20khz();
-
-    // fade in and out to avoid click and pop noises
-    let fade_time = 0.01;
-    sine.fade_in_out(fade_time, fade_time).unwrap();
-    accentuated_sine.fade_in_out(fade_time, fade_time).unwrap();
+        channels: 1,
+    };
+    let accentuated_sine = ToneConfiguration {
+        frequency: freqency_relative_semitone_equal_temperament(freq, 5.0),
+        ..sine
+    };
 
     // beatplayer takes care of generating the beat and its playback
     let beatplayer = Mutex::new(BeatPlayer::new(

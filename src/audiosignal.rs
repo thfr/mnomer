@@ -1,31 +1,40 @@
 use std::f64;
 use std::i16;
 
-use std::ops::*;
+use std::ops::{Add, AddAssign, Mul, MulAssign};
 
 pub mod settings {
-    pub const SAMPLERATE: f64 = 48000.0;
     pub const SINE_MAX_AMPLITUDE: f64 = 0.75;
 }
 
-pub fn time_in_samples(time: f64) -> usize {
-    (time * settings::SAMPLERATE).round() as usize
+pub fn time_in_samples(time: f64, sample_rate: f64) -> usize {
+    (time * sample_rate).round() as usize
 }
 
 #[allow(dead_code)]
 /// Convert number of samples to seconds
-pub fn samples_to_time(samples: usize) -> f64 {
-    samples as f64 / settings::SAMPLERATE
+pub fn samples_to_time(samples: usize, sample_rate: f64) -> f64 {
+    samples as f64 / sample_rate
 }
 
 pub fn freqency_relative_semitone_equal_temperament(base: f64, semitone: f64) -> f64 {
     base * 2f64.powf(semitone / 12f64)
 }
 
+#[derive(Debug, Clone)]
+pub struct ToneConfiguration {
+    pub sample_rate: f64,
+    pub frequency: f64,
+    pub overtones: u8,
+    pub length: f64,
+    pub channels: usize,
+}
+
 #[derive(Debug)]
 pub struct AudioSignal<T> {
     pub signal: Vec<T>,
     pub index: usize,
+    pub tone: ToneConfiguration,
 }
 
 impl Into<AudioSignal<u16>> for AudioSignal<f32> {
@@ -44,6 +53,7 @@ impl Into<AudioSignal<u16>> for AudioSignal<f32> {
         AudioSignal {
             signal: audio,
             index: 0,
+            tone: self.tone,
         }
     }
 }
@@ -64,6 +74,7 @@ impl Into<AudioSignal<i16>> for AudioSignal<f32> {
         AudioSignal {
             signal: audio,
             index: 0,
+            tone: self.tone,
         }
     }
 }
@@ -73,6 +84,7 @@ impl Clone for AudioSignal<f32> {
         AudioSignal {
             signal: self.signal.clone(),
             index: 0,
+            tone: self.tone.clone(),
         }
     }
 }
@@ -84,6 +96,7 @@ impl Add for AudioSignal<f32> {
         let mut new_as = AudioSignal {
             signal: self.signal.to_vec(),
             index: 0,
+            tone: self.tone,
         };
         new_as += other;
         new_as
@@ -108,6 +121,7 @@ impl Mul<f64> for AudioSignal<f32> {
         let mut new_as = AudioSignal {
             signal: self.signal.to_vec(),
             index: 0,
+            tone: self.tone,
         };
         new_as *= factor;
         new_as
@@ -123,27 +137,38 @@ impl MulAssign<f64> for AudioSignal<f32> {
 }
 
 impl AudioSignal<f32> {
-    pub fn generate_tone(freq: f64, length: f64, overtones: u8) -> AudioSignal<f32> {
+    pub fn generate_tone(tone: &ToneConfiguration) -> AudioSignal<f32> {
         // base signal
-        let mut signal = AudioSignal::generate_sine(freq, length);
+        let mut signal = AudioSignal::generate_sine(tone.frequency, tone.length, tone.sample_rate);
 
         // add overtones
-        for freq_factor in 2..(overtones + 2) {
-            signal += AudioSignal::generate_sine(freq_factor as f64 * freq, length) * 0.5;
+        for freq_factor in 2..(tone.overtones + 2) {
+            signal += AudioSignal::generate_sine(
+                freq_factor as f64 * tone.frequency,
+                tone.length,
+                tone.sample_rate,
+            ) * 0.5;
         }
 
         signal
     }
 
-    fn generate_sine(freq: f64, length: f64) -> AudioSignal<f32> {
+    fn generate_sine(freq: f64, length: f64, sample_rate: f64) -> AudioSignal<f32> {
+        let tone = ToneConfiguration{
+            frequency: freq,
+            length,
+            sample_rate,
+            overtones: 0,
+            channels: 1,
+        };
         let pi = f64::consts::PI;
-        let sample_rate = settings::SAMPLERATE;
         let amplitude = settings::SINE_MAX_AMPLITUDE as f64;
 
         let num_samples = (length * sample_rate).round() as usize;
         let mut audio_signal = AudioSignal {
             signal: Vec::with_capacity(num_samples),
             index: 0,
+            tone,
         };
 
         for sam in 0..num_samples {
@@ -152,6 +177,26 @@ impl AudioSignal<f32> {
             audio_signal.signal.push(value as f32);
         }
         audio_signal
+    }
+
+    pub fn channels_from_mono(&self, channels: usize) -> Result<AudioSignal<f32>, String> {
+        if self.tone.channels != 1 {
+            return Err("Can only use mono AudioSignals".into());
+        }
+        let mut audio_signal = AudioSignal {
+            signal: Vec::with_capacity(channels * self.signal.len()),
+            index: 0,
+            tone: self.tone.clone()
+        };
+        audio_signal.tone.channels = channels;
+
+        for &sample in self.signal.iter() {
+            for _ in 0..channels {
+                audio_signal.signal.push(sample);
+            }
+        }
+
+        Ok(audio_signal)
     }
 
     pub fn fade_in_out(&mut self, fade_in_time: f64, fade_out_time: f64) -> Result<(), ()> {
@@ -170,8 +215,8 @@ impl AudioSignal<f32> {
         //       where fs = factor at start
         //              r = ratio
         let start_value = 1.0 / i16::MAX as f64;
-        let fade_in_samples = time_in_samples(fade_in_time).min(self.signal.len());
-        let fade_out_samples = time_in_samples(fade_out_time).min(self.signal.len());
+        let fade_in_samples = time_in_samples(fade_in_time, self.tone.sample_rate).min(self.signal.len());
+        let fade_out_samples = time_in_samples(fade_out_time, self.tone.sample_rate).min(self.signal.len());
         let fade_in_ratio = (1.0 / start_value).powf(1.0 / fade_in_samples as f64);
         let fade_out_ratio = (1.0 / start_value).powf(-1.0 / fade_out_samples as f64);
 
