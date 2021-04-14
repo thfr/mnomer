@@ -58,7 +58,7 @@ pub struct BeatPlayer {
 impl ToString for BeatPlayer {
     fn to_string(&self) -> String {
         format!(
-            "bpm: {}, pattern: {:?}, playing: {}",
+            "bpm: {:4}, pattern: {:?}, playing: {}",
             self.bpm,
             self.pattern,
             self.is_playing()
