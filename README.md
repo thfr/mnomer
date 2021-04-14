@@ -27,5 +27,16 @@ bpm: 80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), playing: true
 ♩♩♩♩: stop
 bpm: 80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), playing: false
 
+♩♩♩♩: bpm
+No bpm value supplied
+Command usage: bpm <value>
+  where <value> >= 1
+bpm: 80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), playing: false
+
+♩♩♩♩: help
+Not a known command: help
+Following commands are defined:
+<ENTER> "start" "stop" "bpm" "pattern"
+
 ♩♩♩♩: quit
 ```

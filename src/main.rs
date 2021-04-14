@@ -83,6 +83,7 @@ fn main() {
         (
             "bpm".to_string(),
             Box::new(|args, bp: &mut BeatPlayer| {
+                let print_help = || println!("Command usage: bpm <value> \n  where <value> >= 1");
                 match args {
                     Some(bpm_str) => match bpm_str.parse::<u16>() {
                         Ok(bpm) => {
@@ -90,9 +91,15 @@ fn main() {
                                 println!("Could not set bpm value of {}", bpm);
                             }
                         }
-                        Err(_) => println!("Could not parse \"{}\" to a value", bpm_str),
+                        Err(_) => {
+                            println!("Could not parse \"{}\" to a value", bpm_str);
+                            print_help();
+                        }
                     },
-                    None => println!("No bpm value supplied"),
+                    None => {
+                        println!("No bpm value supplied");
+                        print_help();
+                    }
                 }
                 println!("{}", bp.to_string());
                 println!("");
@@ -115,11 +122,14 @@ fn main() {
                             Err(x) => println!("{}", x),
                             Ok(_) => (),
                         },
-                        Err(x) => println!("{}", x),
+                        Err(x) => {
+                            println!("{}", x);
+                            print_help();
+                        }
                     },
                     None => {
                         println!("No pattern found");
-                        print_help()
+                        print_help();
                     }
                 }
                 println!("{}", bp.to_string());

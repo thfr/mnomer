@@ -36,8 +36,10 @@ impl<T> Repl<T> {
                         _ => (),
                     }
                     // check if parsed command is in self.commands and execute its function
+                    let mut found = false;
                     for (cmd, function) in &mut self.commands {
                         if parsed_cmd == *cmd {
+                            found = true;
                             if !args.is_empty() {
                                 function(Some(args.as_str()), &mut app);
                             } else {
@@ -46,10 +48,26 @@ impl<T> Repl<T> {
                             break;
                         };
                     }
+                    if !found {
+                        println!("Not a known command: {}", parsed_cmd);
+                        self.print_help();
+                    }
                 }
                 Err(error) => println!("error: {}", error),
             }
         }
+    }
+
+    fn print_help(&self) {
+        println!("Following commands are defined:");
+        for (cmd, _) in self.commands.iter() {
+            if cmd.is_empty() {
+                print!("<ENTER> ");
+            } else {
+                print!("\"{}\" ", cmd);
+            }
+        }
+        println!("");
     }
 }
 
