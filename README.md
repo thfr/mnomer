@@ -1,4 +1,3 @@
-
 # Mnomer
 
 Mnomer is a metronom application written in Rust.
@@ -8,14 +7,16 @@ The main purpose is to experiment with and train myself in the Rust programming 
 
 It should work on Linux, macOS and Windows.
 
-# Features
+Current version is [0.1.0](https://github.com/thfr/mnomer/releases/tag/0.1.0).
+
+## Features
 
 * a [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
 * 3 beat types: Accent, Beat and Pause
 * start/stop with ENTER key
 * bpm and beat pattern change during playback
 
-# Usage
+## Usage
 
 Following commands are implemented: `start`, `stop`, `bpm <number>`
 and `pattern <pattern>` with `<pattern>` adhering to `[!|+|\.]*`
