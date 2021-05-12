@@ -11,42 +11,48 @@ Current version is [0.1.0](https://github.com/thfr/mnomer/releases/tag/0.1.0).
 
 ## Features
 
-* a [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
+* a simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
 * 3 beat types: Accent, Beat and Pause
 * start/stop with ENTER key
-* bpm and beat pattern change during playback
+* pitch, bpm and beat pattern change during playback
 
 ## Usage
 
-Following commands are implemented: `start`, `stop`, `bpm <number>`
-and `pattern <pattern>` with `<pattern>` adhering to `[!|+|\.]*`
+Following commands are implemented: `start`, `stop`, `bpm <number>`,
+`pitch <accent> <normal>` and `pattern <pattern>` with `<pattern>` adhering to `[!|+|\.]*`.
 
 ```txt
-♩♩♩♩: <ENTER>
-bpm: 100, pattern: BeatPattern([Accent, Beat, Beat, Beat]), playing: true
+♩♩♩♩:
+bpm:  100, pattern: BeatPattern([Accent, Beat, Beat, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: true
 
 ♩♩♩♩: bpm 80
-bpm: 80, pattern: BeatPattern([Accent, Beat, Beat, Beat]), playing: true
+bpm:   80, pattern: BeatPattern([Accent, Beat, Beat, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: true
 
 ♩♩♩♩: pattern !+.+
-bpm: 80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), playing: true
+bpm:   80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: true
 
 ♩♩♩♩: start
-bpm: 80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), playing: true
+bpm:   80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: true
 
 ♩♩♩♩: stop
-bpm: 80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), playing: false
+bpm:   80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: false
 
 ♩♩♩♩: bpm
-No bpm value supplied
-Command usage: bpm <value>
-  where <value> >= 1
-bpm: 80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), playing: false
+Error in command "bpm": No bpm value supplied
+Command usage: "bpm <value>" where <value> >= 1
 
 ♩♩♩♩: help
-Not a known command: help
+"help" command unknown
 Following commands are defined:
-<ENTER> "start" "stop" "bpm" "pattern"
+<ENTER>
+"start"
+"stop"
+"bpm"
+"pattern"
+"pitch"
+
+♩♩♩♩: pitch 800 600
+bpm:   80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), accent: 800.00Hz, normal: 600.00Hz, playing: false
 
 ♩♩♩♩: quit
 ```

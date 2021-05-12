@@ -59,9 +59,16 @@ impl<T> Repl<T> {
                             };
                             match cmd_result {
                                 Err(err_msg) => {
-                                    println!("Error in command \"{}\": {}", cmddef.command, err_msg);
+                                    println!(
+                                        "Error in command \"{}\": {}",
+                                        cmddef.command, err_msg
+                                    );
                                     if cmddef.help.is_some() {
-                                        println!("Command usage: {}", cmddef.help.as_ref().unwrap());
+                                        println!(
+                                            "Command usage: {}",
+                                            cmddef.help.as_ref().unwrap()
+                                        );
+                                        println!("");
                                     }
                                 }
                                 Ok(_) => (),

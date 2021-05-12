@@ -58,9 +58,11 @@ pub struct BeatPlayer {
 impl ToString for BeatPlayer {
     fn to_string(&self) -> String {
         format!(
-            "bpm: {:4}, pattern: {:?}, playing: {}",
+            "bpm: {:4}, pattern: {:?}, accent: {:.2}Hz, normal: {:.2}Hz, playing: {}",
             self.bpm,
             self.pattern,
+            self.ac_beat.frequency,
+            self.beat.frequency,
             self.is_playing()
         )
     }
@@ -164,6 +166,34 @@ impl BeatPlayer {
         }
 
         true
+    }
+
+    pub fn set_pitches(&mut self, accent_pitch: f64, normal_pitch: f64) -> Result<(), String> {
+        let check_pitch_bounds = |x: f64| -> Result<(), String> {
+            if x >= 20.0 && x <= 20000.0 {
+                Ok(())
+            } else {
+                Err(format!("Value {} out of range", x))
+            }
+        };
+        check_pitch_bounds(accent_pitch)?;
+        check_pitch_bounds(normal_pitch)?;
+
+        let restart = if self.is_playing() {
+            self.stop();
+            true
+        } else {
+            false
+        };
+
+        self.ac_beat.frequency = accent_pitch;
+        self.beat.frequency = normal_pitch;
+
+        if restart {
+            self.play_beat()?;
+        }
+
+        Ok(())
     }
 
     fn _fill_playback_buffer(

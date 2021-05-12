@@ -133,6 +133,37 @@ fn main() {
             "  `!` = accentuated beat  `+` = normal beat  `.` = pause"
         ))),
     });
+    repl.commands.push(CommandDefinition {
+        command: "pitch".to_string(),
+        function: Box::new(|args, bp: &mut BeatPlayer| {
+            let pitches: Vec<f64> = match args {
+                Some(pitches) => pitches
+                    .split(' ')
+                    .filter(|x| match x.parse::<f64>() {
+                        Ok(_) => true,
+                        Err(_) => {
+                            println!("Could not parse {}", x);
+                            false
+                        }
+                    })
+                    .map(|x| x.parse::<f64>().unwrap())
+                    .collect(),
+                None => return Err(format!("No pattern found")),
+            };
+            if pitches.len() != 2 {
+                return Err(String::from("Wrong number of pitches"));
+            };
+            bp.set_pitches(pitches[0], pitches[1])?;
+            println!("{}", bp.to_string());
+            println!("");
+            Ok(())
+        }),
+        help: Some(String::from(format!(
+            "{}\n{}",
+            "\"pitch <accentuated beat pitch> <normal beat pitch>\"",
+            "  pitches must should within [20; 20k]Hz, may be floatling number",
+        ))),
+    });
 
     repl.process();
 }
