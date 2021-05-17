@@ -27,8 +27,8 @@ impl<T> Repl<T> {
         self.commands.insert(cmddef.command.clone(), cmddef);
     }
 
-    /// Make the REPL go until self.exit is set to true
-    pub fn process(&mut self) {
+    /// Make the REPL run until self.exit is set to true
+    pub fn run(&mut self) {
         let mut app = self.app.lock().unwrap();
         // TODO: make this function testable by splitting it
         //       maybe use some kind of buffers so that std::std{in,out} may be exchanged for testing

@@ -11,15 +11,14 @@ use std::{collections::HashMap, convert::TryFrom};
 fn main() {
     // Create the tone configurations for the beatplayer
     let freq = 440.0;
-    let length = 0.05;
-    let overtones = 1;
     let normal_beat = ToneConfiguration {
         frequency: freq,
-        sample_rate: 48000.0,
-        length,
-        overtones,
+        sample_rate: 48000.0, // may be changed by the beatplayer for match the audio device
+        length: 0.05,         // 50 ms
+        overtones: 1,
         channels: 1,
     };
+
     // accentuated beat is 5 semitones higher than the normal beat
     let accentuated_beat = ToneConfiguration {
         frequency: freqency_relative_semitone_equal_temperament(freq, 5.0),
@@ -29,8 +28,8 @@ fn main() {
     // beatplayer takes care of generating the beat and its playback
     let beatplayer = Mutex::new(BeatPlayer::new(
         100,
-        normal_beat.clone(),
-        accentuated_beat.clone(),
+        normal_beat,
+        accentuated_beat,
         BeatPattern {
             0: vec![
                 BeatPatternType::Accent,
@@ -49,6 +48,12 @@ fn main() {
         prompt: "♩♩♩♩: ".to_string(),
     };
 
+    add_repl_commands(&mut repl);
+
+    repl.run();
+}
+
+fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
     repl.set_command(CommandDefinition {
         // ENTER to toggle playback
         command: "".to_string(),
@@ -167,6 +172,4 @@ fn main() {
             "  pitches must should within [20; 20k]Hz, may be floating point numbers",
         ))),
     });
-
-    repl.process();
 }
