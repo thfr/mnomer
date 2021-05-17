@@ -5,8 +5,8 @@ mod repl;
 use audiosignal::{freqency_relative_semitone_equal_temperament, ToneConfiguration};
 use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
 use repl::{CommandDefinition, Repl};
-use std::convert::TryFrom;
 use std::sync::Mutex;
+use std::{collections::HashMap, convert::TryFrom};
 
 fn main() {
     // Create the tone configurations for the beatplayer
@@ -44,12 +44,12 @@ fn main() {
     // create the user interface, the Read Evaluate Print Loop (REPL)
     let mut repl = Repl {
         app: beatplayer,
-        commands: vec![],
+        commands: HashMap::new(),
         exit: false.into(),
         prompt: "♩♩♩♩: ".to_string(),
     };
 
-    repl.commands.push(CommandDefinition {
+    repl.set_command(CommandDefinition {
         // ENTER to toggle playback
         command: "".to_string(),
         function: Box::new(|_, bp: &mut BeatPlayer| {
@@ -64,7 +64,8 @@ fn main() {
         }),
         help: None,
     });
-    repl.commands.push(CommandDefinition {
+
+    repl.set_command(CommandDefinition {
         command: "start".to_string(),
         function: Box::new(|_, bp: &mut BeatPlayer| {
             if !bp.is_playing() {
@@ -77,7 +78,7 @@ fn main() {
         help: None,
     });
 
-    repl.commands.push(CommandDefinition {
+    repl.set_command(CommandDefinition {
         command: "stop".to_string(),
         function: Box::new(|_, bp: &mut BeatPlayer| {
             bp.stop();
@@ -88,7 +89,7 @@ fn main() {
         help: None,
     });
 
-    repl.commands.push(CommandDefinition {
+    repl.set_command(CommandDefinition {
         command: "bpm".to_string(),
         function: Box::new(|args, bp: &mut BeatPlayer| {
             match args {
@@ -112,7 +113,8 @@ fn main() {
         }),
         help: Some(String::from("\"bpm <value>\" where <value> >= 1")),
     });
-    repl.commands.push(CommandDefinition {
+
+    repl.set_command(CommandDefinition {
         command: "pattern".to_string(),
         function: Box::new(|args, bp: &mut BeatPlayer| {
             match args {
@@ -133,7 +135,8 @@ fn main() {
             "  `!` = accentuated beat  `+` = normal beat  `.` = pause"
         ))),
     });
-    repl.commands.push(CommandDefinition {
+
+    repl.set_command(CommandDefinition {
         command: "pitch".to_string(),
         function: Box::new(|args, bp: &mut BeatPlayer| {
             let pitches: Vec<f64> = match args {
@@ -161,7 +164,7 @@ fn main() {
         help: Some(String::from(format!(
             "{}\n{}",
             "\"pitch <accentuated beat pitch> <normal beat pitch>\"",
-            "  pitches must should within [20; 20k]Hz, may be floatling number",
+            "  pitches must should within [20; 20k]Hz, may be floating point numbers",
         ))),
     });
 

@@ -14,19 +14,22 @@ pub struct CommandDefinition<T> {
 
 pub struct Repl<T> {
     pub app: Mutex<T>,
-    pub commands: Vec<CommandDefinition<T>>,
+    pub commands: HashMap<String, CommandDefinition<T>>,
     pub exit: AtomicBool,
     pub prompt: String,
 }
 
 impl<T> Repl<T> {
+    /// Add or update a command a REPL command
+    ///
+    /// A command is updated if `cmddef.command` matches a already added command
+    pub fn set_command(&mut self, cmddef: CommandDefinition<T>) {
+        self.commands.insert(cmddef.command.clone(), cmddef);
+    }
+
     /// Make the REPL go until self.exit is set to true
     pub fn process(&mut self) {
         let mut app = self.app.lock().unwrap();
-        let mut commands_map: HashMap<String, usize> = HashMap::new();
-        for index in 0..self.commands.len() {
-            commands_map.insert(self.commands[index].command.clone(), index);
-        }
         // TODO: make this function testable by splitting it
         //       maybe use some kind of buffers so that std::std{in,out} may be exchanged for testing
         self.exit.store(false, Ordering::SeqCst);
@@ -49,9 +52,8 @@ impl<T> Repl<T> {
                         _ => (),
                     }
                     // check if parsed command is in self.commands and execute its function
-                    match commands_map.get(parsed_cmd.as_str()) {
-                        Some(commmands_index) => {
-                            let cmddef = self.commands.get_mut(*commmands_index).unwrap();
+                    match self.commands.get_mut(parsed_cmd.as_str()) {
+                        Some(cmddef) => {
                             let cmd_result = if !args.is_empty() {
                                 (cmddef.function)(Some(args), &mut app)
                             } else {
@@ -87,8 +89,8 @@ impl<T> Repl<T> {
 
     fn print_commmands(&self) {
         println!("Following commands are defined:");
-        for cmddef in self.commands.iter() {
-            if cmddef.command.is_empty() {
+        for (cmd, cmddef) in self.commands.iter() {
+            if cmd.is_empty() {
                 println!("<ENTER>");
             } else {
                 println!("\"{}\"", cmddef.command);
