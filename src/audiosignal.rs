@@ -30,11 +30,18 @@ pub struct ToneConfiguration {
     pub channels: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AudioSignal<T> {
     pub signal: Vec<T>,
     pub index: usize,
     pub tone: ToneConfiguration,
+}
+
+impl<T: Copy> AudioSignal<T> {
+    pub fn get_next_sample(&mut self) -> T {
+        self.index = (self.index + 1) % self.signal.len();
+        self.signal[self.index as usize]
+    }
 }
 
 impl Into<AudioSignal<u16>> for AudioSignal<f32> {
@@ -75,16 +82,6 @@ impl Into<AudioSignal<i16>> for AudioSignal<f32> {
             signal: audio,
             index: 0,
             tone: self.tone,
-        }
-    }
-}
-
-impl Clone for AudioSignal<f32> {
-    fn clone(&self) -> Self {
-        AudioSignal {
-            signal: self.signal.clone(),
-            index: 0,
-            tone: self.tone.clone(),
         }
     }
 }
@@ -154,7 +151,7 @@ impl AudioSignal<f32> {
     }
 
     fn generate_sine(freq: f64, length: f64, sample_rate: f64) -> AudioSignal<f32> {
-        let tone = ToneConfiguration{
+        let tone = ToneConfiguration {
             frequency: freq,
             length,
             sample_rate,
@@ -186,7 +183,7 @@ impl AudioSignal<f32> {
         let mut audio_signal = AudioSignal {
             signal: Vec::with_capacity(channels * self.signal.len()),
             index: 0,
-            tone: self.tone.clone()
+            tone: self.tone.clone(),
         };
         audio_signal.tone.channels = channels;
 
@@ -215,8 +212,10 @@ impl AudioSignal<f32> {
         //       where fs = factor at start
         //              r = ratio
         let start_value = 1.0 / i16::MAX as f64;
-        let fade_in_samples = time_in_samples(fade_in_time, self.tone.sample_rate).min(self.signal.len());
-        let fade_out_samples = time_in_samples(fade_out_time, self.tone.sample_rate).min(self.signal.len());
+        let fade_in_samples =
+            time_in_samples(fade_in_time, self.tone.sample_rate).min(self.signal.len());
+        let fade_out_samples =
+            time_in_samples(fade_out_time, self.tone.sample_rate).min(self.signal.len());
         let fade_in_ratio = (1.0 / start_value).powf(1.0 / fade_in_samples as f64);
         let fade_out_ratio = (1.0 / start_value).powf(-1.0 / fade_out_samples as f64);
 
@@ -281,12 +280,5 @@ impl AudioSignal<f32> {
                 (xv[0] + xv[2]) + 2.0 * xv[1] + (-0.4775922501 * yv[0]) + (-1.2796324250 * yv[1]);
             *sample = yv[2] as f32;
         }
-    }
-}
-
-impl<T: Copy> AudioSignal<T> {
-    pub fn get_next_sample(&mut self) -> T {
-        self.index = (self.index + 1) % self.signal.len();
-        self.signal[self.index as usize]
     }
 }
