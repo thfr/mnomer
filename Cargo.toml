@@ -5,4 +5,4 @@ authors = ["Thomas Frank <thfr.git@e.mail.de>"]
 edition = "2018"
 
 [dependencies]
-cpal = "0.13.1"
+cpal = "0.13.3"
