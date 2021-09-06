@@ -28,6 +28,7 @@ fn main() {
     // beatplayer takes care of generating the beat and its playback
     let beatplayer = Mutex::new(BeatPlayer::new(
         100,
+        4,
         normal_beat,
         accentuated_beat,
         BeatPattern {
@@ -116,7 +117,7 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             println!("");
             Ok(())
         }),
-        help: Some(String::from("\"bpm <value>\" where <value> >= 1")),
+        help: Some(String::from("\"bpm <value>\" where <value> >= 1\n  This value is based on a beat value of 4 (1/4 note duration)")),
     });
 
     repl.set_command(CommandDefinition {
@@ -170,6 +171,33 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             "{}\n{}",
             "\"pitch <accentuated beat pitch> <normal beat pitch>\"",
             "  pitches must should within [20; 20k]Hz, may be floating point numbers",
+        ))),
+    });
+    repl.set_command(CommandDefinition {
+        command: "beatvalue".into(),
+        function: Box::new(|args, bp: &mut BeatPlayer| {
+            match args {
+                Some(beat_value_str) => match beat_value_str.parse::<u16>() {
+                    Ok(beat_value) => {
+                        if !bp.set_beat_value(beat_value) {
+                            return Err(format!("Could not set beat value of {}", beat_value));
+                        }
+                    }
+                    Err(_) => {
+                        return Err(format!("Could not parse \"{}\" to a value", beat_value_str));
+                    }
+                },
+                None => {
+                    return Err(format!("No beat value supplied"));
+                }
+            }
+            println!("{}", bp.to_string());
+            println!("");
+            Ok(())
+        }),
+        help: Some(String::from(format!(
+            "{}\n{}",
+            "\"beatvalue <note value for beat pattern>\"", "  defaults to 4 (meaning a beat is a 1/4 note which is the base for the bpm value)",
         ))),
     });
 }

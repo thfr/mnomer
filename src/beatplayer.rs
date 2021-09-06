@@ -6,6 +6,8 @@ use cpal::{
 use crate::audiosignal::{samples_to_time, AudioSignal, ToneConfiguration};
 use std::{convert::TryFrom, f64, sync::Mutex};
 
+pub const BaseBeatValue: u16 = 4;
+
 /// Metronome beat pattern types
 #[derive(Debug, PartialEq, Clone)]
 pub enum BeatPatternType {
@@ -48,6 +50,7 @@ impl TryFrom<&str> for BeatPattern {
 // #[derive(Debug)]
 pub struct BeatPlayer {
     pub bpm: u16,
+    pub beat_value: u16,
     pub beat: ToneConfiguration,
     pub ac_beat: ToneConfiguration,
     pub pattern: BeatPattern,
@@ -58,8 +61,9 @@ pub struct BeatPlayer {
 impl ToString for BeatPlayer {
     fn to_string(&self) -> String {
         format!(
-            "bpm: {:4}, pattern: {:?}, accent: {:.2}Hz, normal: {:.2}Hz, playing: {}",
+            "bpm: {:4}, beat_value: 1/{}, pattern: {:?}, accent: {:.2}Hz, normal: {:.2}Hz, playing: {}",
             self.bpm,
+            self.beat_value,
             self.pattern,
             self.ac_beat.frequency,
             self.beat.frequency,
@@ -71,12 +75,14 @@ impl ToString for BeatPlayer {
 impl BeatPlayer {
     pub fn new(
         bpm: u16,
+        beat_value: u16,
         beat: ToneConfiguration,
         ac_beat: ToneConfiguration,
         pattern: BeatPattern,
     ) -> BeatPlayer {
         BeatPlayer {
             bpm,
+            beat_value,
             beat,
             ac_beat,
             pattern,
@@ -135,6 +141,40 @@ impl BeatPlayer {
         }
 
         Ok(())
+    }
+
+    /// Set the beat value
+    ///
+    /// The default value is 4 which means the beat battern is played in a x/4 measure
+    /// where x is the number of beats in the beat pattern.
+    ///
+    /// Stops and resumes playback if playback is running
+    pub fn set_beat_value(&mut self, beat_value: u16) -> bool {
+        if beat_value == 0 {
+            return false;
+        }
+
+        let restart = if self.is_playing() {
+            self.stop();
+            true
+        } else {
+            false
+        };
+
+        let previous_beat_value = self.beat_value;
+        self.beat_value = beat_value;
+
+        if restart {
+            match self.play_beat() {
+                Err(_) => {
+                    self.beat_value = previous_beat_value;
+                    return false;
+                }
+                _ => (),
+            };
+        }
+
+        true
     }
 
     /// Set the beats per minute
@@ -220,7 +260,8 @@ impl BeatPlayer {
         beat.fade_in_out(fade_time, fade_time).unwrap();
         ac_beat.fade_in_out(fade_time, fade_time).unwrap();
 
-        let samples_per_beat = ((60.0 * sample_rate) / self.bpm as f64).round() as isize;
+        let beats_per_minute = self.bpm as f64 * self.beat_value as f64 / BaseBeatValue as f64;
+        let samples_per_beat = ((60.0 * sample_rate) / beats_per_minute).round() as isize;
 
         let silence_samples = samples_per_beat as isize - beat.signal.len() as isize;
         if silence_samples < 0 {
