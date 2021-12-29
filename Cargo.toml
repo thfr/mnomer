@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 cpal = "0.13.3"
+crossterm = "0.21.0"
