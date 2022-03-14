@@ -4,7 +4,7 @@ mod repl;
 
 use audiosignal::{freqency_relative_semitone_equal_temperament, ToneConfiguration};
 use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
-use repl::{CommandDefinition, InputHistory, Repl};
+use repl::{CommandDefinition, InputHistory, Prompt, Repl};
 use std::sync::Mutex;
 use std::{collections::HashMap, convert::TryFrom};
 
@@ -46,7 +46,7 @@ fn main() {
         app: beatplayer,
         commands: HashMap::new(),
         exit: false.into(),
-        prompt: "♩♩♩♩: ".to_string(),
+        prompt: Prompt::create("♩♩♩♩: "),
         history: InputHistory::new(),
     };
 
