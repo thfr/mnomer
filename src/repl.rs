@@ -16,8 +16,11 @@ use std::{
 };
 
 pub struct CommandDefinition<T> {
+    /// Name of command, will be matched with the user input
     pub command: String,
+    /// Take an argument, do stuff and return Messages to display
     pub function: Box<dyn FnMut(Option<String>, &mut T) -> Result<String, String>>,
+    /// Help message to be displayed after the `function` returns an Error object
     pub help: Option<String>,
 }
 
@@ -42,7 +45,10 @@ impl<T> Repl<T> {
         let mut stdout = io::stdout();
         crossterm::terminal::enable_raw_mode()?;
 
-        stdout.queue(style::Print(&self.prompt))?.flush()?;
+        // print prompt first time
+        let output_msg = String::from("This is Mnomer");
+        self.output_prompt_status(&mut stdout, &output_msg)?;
+
         while !self.exit.load(Ordering::SeqCst) {
             match crossterm::event::read()? {
                 Event::Key(event) => {
@@ -90,7 +96,8 @@ impl<T> Repl<T> {
             }
             _ => false,
         };
-        let prompt = &self.prompt;
+
+        // Message that needs to be displayed
         let output_msg = if let Some(msg) = key_message {
             let mut output_msg = msg;
             if !key_press_successful {
@@ -100,14 +107,28 @@ impl<T> Repl<T> {
         } else {
             String::new()
         };
+
+        self.output_prompt_status(stdout, &output_msg)
+    }
+
+    fn output_prompt_status(
+        &mut self,
+        stdout: &mut Stdout,
+        output_msg: &String,
+    ) -> crossterm::Result<()> {
         let (_, cursor_row) = cursor::position()?;
         let (_, rows) = terminal::size()?;
+
+        // check if enter was pressed
         if cursor_row + 1 == rows {
-            // last line, we add a new line but scrolling
+            // cursor reached last line -> add a new line
             stdout.queue(terminal::ScrollUp(1))?;
         }
+        let prompt = &self.prompt;
+
+        // print new status line and new prompt
         stdout
-            .queue(cursor::MoveToNextLine(1))?
+            .queue(cursor::MoveTo(0, rows))?
             .queue(terminal::Clear(ClearType::CurrentLine))?
             .queue(style::Print(output_msg))?
             .queue(cursor::MoveUp(1))?
