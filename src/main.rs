@@ -47,6 +47,7 @@ fn main() {
         commands: HashMap::new(),
         exit: false.into(),
         prompt: "♩♩♩♩: ".to_string(),
+        status_line: "This is mnomer".to_string(),
         history: InputHistory::new(),
     };
 

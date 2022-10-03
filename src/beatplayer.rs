@@ -3,10 +3,13 @@ use cpal::{
     SampleFormat, Stream,
 };
 
-use crate::audiosignal::{samples_to_time, AudioSignal, ToneConfiguration};
-use std::{convert::TryFrom, f64, sync::Mutex};
+use crate::{
+    audiosignal::{samples_to_time, AudioSignal, ToneConfiguration},
+    repl::ReplApp,
+};
+use std::{convert::TryFrom, f64, fmt::Display, sync::Mutex};
 
-pub const BaseBeatValue: u16 = 4;
+pub const BASE_BEAT_VALUE: u16 = 4;
 
 /// Metronome beat pattern types
 #[derive(Debug, PartialEq, Clone)]
@@ -30,6 +33,16 @@ impl TryFrom<&char> for BeatPatternType {
     }
 }
 
+impl Into<char> for &BeatPatternType {
+    fn into(self) -> char {
+        match self {
+            BeatPatternType::Accent => '!',
+            BeatPatternType::Beat => '+',
+            BeatPatternType::Pause => '.',
+        }
+    }
+}
+
 /// Metronome beat pattern
 #[derive(Debug, Clone)]
 pub struct BeatPattern(pub Vec<BeatPatternType>);
@@ -46,6 +59,16 @@ impl TryFrom<&str> for BeatPattern {
     }
 }
 
+impl Display for BeatPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut res = String::new();
+        for beat in &self.0 {
+            res.push(beat.into());
+        }
+        write!(f, "{}", res)
+    }
+}
+
 /// A metronome sound player that realizes the beat playback
 // #[derive(Debug)]
 pub struct BeatPlayer {
@@ -56,6 +79,15 @@ pub struct BeatPlayer {
     pub pattern: BeatPattern,
     stream: Option<Stream>,
     start_stop_mtx: Mutex<()>,
+}
+
+impl ReplApp for BeatPlayer {
+    fn get_status(&self) -> String {
+        format!(
+            "pattern: {}  bpm: {}  pitch: {} {}",
+            &self.pattern, &self.bpm, &self.ac_beat.frequency, &self.beat.frequency
+        )
+    }
 }
 
 impl ToString for BeatPlayer {
@@ -260,7 +292,7 @@ impl BeatPlayer {
         beat.fade_in_out(fade_time, fade_time).unwrap();
         ac_beat.fade_in_out(fade_time, fade_time).unwrap();
 
-        let beats_per_minute = self.bpm as f64 * self.beat_value as f64 / BaseBeatValue as f64;
+        let beats_per_minute = self.bpm as f64 * self.beat_value as f64 / BASE_BEAT_VALUE as f64;
         let samples_per_beat = ((60.0 * sample_rate) / beats_per_minute).round() as isize;
 
         let silence_samples = samples_per_beat as isize - beat.signal.len() as isize;

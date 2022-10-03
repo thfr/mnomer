@@ -24,15 +24,23 @@ pub struct CommandDefinition<T> {
     pub help: Option<String>,
 }
 
+pub trait ReplApp {
+    fn get_status(&self) -> String;
+}
+
 pub struct Repl<T> {
     pub app: Mutex<T>,
     pub commands: HashMap<String, CommandDefinition<T>>,
     pub exit: AtomicBool,
     pub prompt: String,
+    pub status_line: String,
     pub history: InputHistory,
 }
 
-impl<T> Repl<T> {
+impl<T> Repl<T>
+where
+    T: ReplApp,
+{
     /// Add or update a command a REPL command
     ///
     /// A command is updated if `cmddef.command` matches a already added command
@@ -46,8 +54,7 @@ impl<T> Repl<T> {
         crossterm::terminal::enable_raw_mode()?;
 
         // print prompt first time
-        let output_msg = String::from("This is Mnomer");
-        self.output_prompt_status(&mut stdout, &output_msg)?;
+        self.output_prompt_status(&mut stdout, None)?;
 
         while !self.exit.load(Ordering::SeqCst) {
             match crossterm::event::read()? {
@@ -103,18 +110,18 @@ impl<T> Repl<T> {
             if !key_press_successful {
                 output_msg.insert_str(0, "Error: ");
             }
-            output_msg
+            Some(output_msg)
         } else {
-            String::new()
+            None
         };
 
-        self.output_prompt_status(stdout, &output_msg)
+        self.output_prompt_status(stdout, output_msg)
     }
 
     fn output_prompt_status(
         &mut self,
         stdout: &mut Stdout,
-        output_msg: &String,
+        output_msg: Option<String>,
     ) -> crossterm::Result<()> {
         let (_, cursor_row) = cursor::position()?;
         let (_, rows) = terminal::size()?;
@@ -126,11 +133,18 @@ impl<T> Repl<T> {
         }
         let prompt = &self.prompt;
 
-        // print new status line and new prompt
+        // print new status line
         stdout
             .queue(cursor::MoveTo(0, rows))?
-            .queue(terminal::Clear(ClearType::CurrentLine))?
-            .queue(style::Print(output_msg))?
+            .queue(terminal::Clear(ClearType::CurrentLine))?;
+        if let Some(x) = output_msg {
+            stdout.queue(style::Print(x))?;
+        } else {
+            stdout.queue(style::Print(self.app.get_mut().unwrap().get_status()))?;
+        }
+
+        // print new prompt
+        stdout
             .queue(cursor::MoveUp(1))?
             .queue(terminal::Clear(ClearType::CurrentLine))?
             .queue(cursor::MoveToColumn(0))?
@@ -138,8 +152,10 @@ impl<T> Repl<T> {
             .queue(style::Print(self.history.get_line()))?
             .queue(cursor::MoveToColumn(
                 (prompt.chars().count() + self.history.column + 1) as u16,
-            ))?
-            .flush()?;
+            ))?;
+
+        // make output happen
+        stdout.flush()?;
         Ok(())
     }
 
