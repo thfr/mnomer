@@ -179,7 +179,7 @@ where
                 }
                 None => {
                     let msg = format!(
-                        "\"{}\" command unknown! {}",
+                        "\"{}\" command unknown! Unknown commands: {}",
                         parsed_cmd,
                         self.list_commands()
                     );

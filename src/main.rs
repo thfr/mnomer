@@ -112,31 +112,29 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
                         if !bp.set_bpm(bpm) {
                             return Err(format!("Could not set bpm value of {}", bpm));
                         }
+                        Ok(format!("Bpm set to {}", bpm))
                     }
                     Err(_) => {
-                        return Err(format!("Could not parse \"{}\" to a value", bpm_str));
+                        Err(format!("Could not parse \"{}\" to a value", bpm_str))
                     }
                 },
                 None => {
-                    return Err(format!("No bpm value supplied"));
+                    Err(format!("No bpm value supplied"))
                 }
             }
-            Ok(format!("Bpm set to {}", bp.to_string()))
         }),
-        help: Some(String::from("\"bpm <value>\" where <value> >= 1\n  This value is based on a beat value of 4 (1/4 note duration)")),
+        help: Some(String::from("\"bpm <value>\" where <value> >= 1\nThis value is based on a beat value of 4 (1/4 note duration)")),
     });
 
     repl.set_command(CommandDefinition {
         command: "pattern".to_string(),
-        function: Box::new(|args, bp: &mut BeatPlayer| {
-            match args {
-                Some(pattern_str) => {
-                    let pattern = BeatPattern::try_from(pattern_str.as_str())?;
-                    bp.set_pattern(&pattern)?;
-                    return Ok(format!("Pattern set to {}", pattern));
-                }
-                None => return Err(format!("No pattern found")),
+        function: Box::new(|args, bp: &mut BeatPlayer| match args {
+            Some(pattern_str) => {
+                let pattern = BeatPattern::try_from(pattern_str.as_str())?;
+                bp.set_pattern(&pattern)?;
+                return Ok(format!("Pattern set to {}", pattern));
             }
+            None => return Err(format!("No pattern found")),
         }),
         help: Some(String::from(format!(
             "{}\n{}\n{}",
@@ -164,7 +162,7 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
                 return Err(String::from("Wrong number of pitches"));
             };
             bp.set_pitches(pitches[0], pitches[1])?;
-            Ok(format!("Pitch set to {}", bp.to_string()))
+            Ok(format!("Pitch set to {} and {}", pitches[0], pitches[1]))
         }),
         help: Some(String::from(format!(
             "\"pitch <accentuated beat pitch> <normal beat pitch>\" pitches must should within [20; 20k]Hz"
@@ -172,23 +170,17 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
     });
     repl.set_command(CommandDefinition {
         command: "beatvalue".into(),
-        function: Box::new(|args, bp: &mut BeatPlayer| {
-            match args {
-                Some(beat_value_str) => match beat_value_str.parse::<u16>() {
-                    Ok(beat_value) => {
-                        if !bp.set_beat_value(beat_value) {
-                            return Err(format!("Could not set beat value of {}", beat_value));
-                        }
+        function: Box::new(|args, bp: &mut BeatPlayer| match args {
+            Some(beat_value_str) => match beat_value_str.parse::<u16>() {
+                Ok(beat_value) => {
+                    if !bp.set_beat_value(beat_value) {
+                        return Err(format!("Could not set beat value of {}", beat_value));
                     }
-                    Err(_) => {
-                        return Err(format!("Could not parse \"{}\" to a value", beat_value_str));
-                    }
-                },
-                None => {
-                    return Err(format!("No beat value supplied"));
+                    Ok(format!("Beat value set to {}", beat_value))
                 }
-            }
-            Ok(format!("Beat value set to {}", bp.to_string()))
+                Err(_) => Err(format!("Could not parse \"{}\" to a value", beat_value_str)),
+            },
+            None => Err(format!("No beat value supplied")),
         }),
         help: Some(String::from(format!(
             "{}\n{}",
