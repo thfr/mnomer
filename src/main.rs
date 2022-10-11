@@ -132,11 +132,11 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             match args {
                 Some(pattern_str) => {
                     let pattern = BeatPattern::try_from(pattern_str.as_str())?;
-                    bp.set_pattern(pattern)?;
+                    bp.set_pattern(&pattern)?;
+                    return Ok(format!("Pattern set to {}", pattern));
                 }
                 None => return Err(format!("No pattern found")),
             }
-            Ok(format!("Pattern set to {}", bp.to_string()))
         }),
         help: Some(String::from(format!(
             "{}\n{}\n{}",

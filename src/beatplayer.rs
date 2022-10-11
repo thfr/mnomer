@@ -145,7 +145,7 @@ impl BeatPlayer {
     /// Set the beat pattern
     ///
     /// Stops and resumes playback if playback is running
-    pub fn set_pattern(&mut self, pattern: BeatPattern) -> Result<(), String> {
+    pub fn set_pattern(&mut self, pattern: &BeatPattern) -> Result<(), String> {
         if pattern.0.is_empty() {
             return Err("Beat pattern is empty, will not change anything".to_string());
         }
@@ -157,7 +157,7 @@ impl BeatPlayer {
         };
 
         let previous_pattern = pattern.0.clone();
-        self.pattern.0 = pattern.0;
+        self.pattern.0 = pattern.0.clone();
 
         if restart {
             match self.play_beat() {
