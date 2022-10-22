@@ -53,7 +53,7 @@ fn main() {
 
     add_repl_commands(&mut repl);
 
-    match repl.run_with_crossterm() {
+    match repl.run() {
         Ok(_) => (),
         Err(_) => println!("Something went wrong with the REPL"),
     };
@@ -123,7 +123,7 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
                 }
             }
         }),
-        help: Some(String::from("\"bpm <value>\" where <value> >= 1\nThis value is based on a beat value of 4 (1/4 note duration)")),
+        help: Some(String::from("\"bpm <value>\" where <value> >= 1\nThis value is based on a beat value of 4 (1/4 note value)")),
     });
 
     repl.set_command(CommandDefinition {
@@ -184,8 +184,8 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
         }),
         help: Some(String::from(format!(
             "{}\n{}",
-            "\"beatvalue <note value for beat pattern>\"",
-            "  defaults to 4 (meaning a beat is a 1/4 note which is the base for the bpm value)",
+            "\"beatvalue <note value subdivision for beat pattern>\"",
+            "  defaults to 4 (meaning a beat has a 1/4 note value which is the base for the bpm value)",
         ))),
     });
 }

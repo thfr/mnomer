@@ -2,6 +2,7 @@ use crossterm::{
     self, cursor,
     event::{Event, KeyCode, KeyModifiers},
     style,
+    style::Stylize,
     terminal::{self, ClearType},
     QueueableCommand,
 };
@@ -15,6 +16,7 @@ use std::{
     iter::FromIterator,
 };
 
+/// Definition of a command that the REPL recognizes and executes
 pub struct CommandDefinition<T> {
     /// Name of command, will be matched with the user input
     pub command: String,
@@ -24,6 +26,7 @@ pub struct CommandDefinition<T> {
     pub help: Option<String>,
 }
 
+/// Requirement for object that the REPL interacts with
 pub trait ReplApp {
     fn get_status(&self) -> String;
 }
@@ -48,13 +51,16 @@ where
         self.commands.insert(cmddef.command.clone(), cmddef);
     }
 
-    pub fn run_with_crossterm(&mut self) -> crossterm::Result<()> {
+    /// Start the REPL
+    ///
+    /// Waits for keyboard events to process them
+    pub fn run(&mut self) -> crossterm::Result<()> {
         self.exit.store(false, Ordering::SeqCst);
         let mut stdout = io::stdout();
         crossterm::terminal::enable_raw_mode()?;
 
         // print prompt first time
-        self.output_prompt_status(&mut stdout, None)?;
+        self.refresh_prompt_status(&mut stdout, None)?;
 
         while !self.exit.load(Ordering::SeqCst) {
             match crossterm::event::read()? {
@@ -71,6 +77,7 @@ where
         Ok(())
     }
 
+    /// React on key presses
     fn on_key_pressed(&mut self, stdout: &mut Stdout, key: &KeyCode) -> crossterm::Result<()> {
         let mut key_message: Option<String> = None;
         let key_press_successful = match key {
@@ -115,10 +122,11 @@ where
             None
         };
 
-        self.output_prompt_status(stdout, output_msg)
+        self.refresh_prompt_status(stdout, output_msg)
     }
 
-    fn output_prompt_status(
+    /// Refresh prompt and status line
+    fn refresh_prompt_status(
         &mut self,
         stdout: &mut Stdout,
         output_msg: Option<String>,
@@ -140,7 +148,9 @@ where
         if let Some(x) = output_msg {
             stdout.queue(style::Print(x))?;
         } else {
-            stdout.queue(style::Print(self.app.get_mut().unwrap().get_status()))?;
+            stdout.queue(style::Print(
+                self.app.get_mut().unwrap().get_status().negative(),
+            ))?;
         }
 
         // print new prompt
@@ -159,9 +169,9 @@ where
         Ok(())
     }
 
-    /// Give an error message to display
+    /// Match input with known commands and react appropriately
     fn parse_and_execute_command(&mut self, input: String) -> Result<String, String> {
-        // remove every whitespace from left, iterate over the lines, take only the first line
+        // remove every white space from left, iterate over the lines, take only the first line
         let (parsed_cmd, args) = parse_cmd_w_args(input);
 
         match parsed_cmd.as_str() {
@@ -169,23 +179,26 @@ where
                 self.exit.store(true, Ordering::SeqCst);
                 return Ok(String::from("Exiting"));
             }
-            "help" => match self.commands.get_mut(args.as_str()) {
-                Some(cmddef) => {
-                    if let Some(help_msg) = &cmddef.help {
-                        return Ok(help_msg.clone());
-                    } else {
-                        return Ok(String::from("No help message"));
+            "help" => {
+                // show all commands no argument is given
+                if args.is_empty() {
+                    let msg = format!("Known commands: {}", self.list_commands());
+                    return Ok(msg);
+                }
+                // show help for command given as argument
+                else {
+                    match self.commands.get_mut(args.as_str()) {
+                        Some(cmddef) => {
+                            if let Some(help_msg) = &cmddef.help {
+                                return Ok(help_msg.clone());
+                            } else {
+                                return Ok(String::from("No help message"));
+                            }
+                        }
+                        None => return Err(format!("Command \"{}\" is unknown!", args)),
                     }
                 }
-                None => {
-                    let msg = format!(
-                        "\"{}\" command unknown! Unknown commands: {}",
-                        parsed_cmd,
-                        self.list_commands()
-                    );
-                    return Err(msg);
-                }
-            },
+            }
             _ => (),
         }
         // check if parsed command is in self.commands and execute its function
@@ -210,7 +223,7 @@ where
             }
             None => {
                 let msg = format!(
-                    "\"{}\" command unknown! {}",
+                    "\"{}\" command unknown! Known commands: {}",
                     parsed_cmd,
                     self.list_commands()
                 );
