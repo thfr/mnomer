@@ -3,7 +3,7 @@ use crossterm::{
     event::{Event, KeyCode, KeyModifiers},
     style,
     style::Stylize,
-    terminal::{self, ClearType},
+    terminal::{self, ClearType, EnableLineWrap},
     QueueableCommand,
 };
 
@@ -48,7 +48,23 @@ where
     ///
     /// A command is updated if `cmddef.command` matches a already added command
     pub fn set_command(&mut self, cmddef: CommandDefinition<T>) {
-        self.commands.insert(cmddef.command.clone(), cmddef);
+        let mut cmd = cmddef;
+
+        // make sure that each help command ends with a new line
+        if let Some(help_msg) = cmd.help {
+            let append_newline = match help_msg.chars().last() {
+                Some('\n') => false,
+                None => false,
+                Some(_) => true,
+            };
+            let mut new_help = help_msg;
+            if append_newline {
+                new_help.push('\n');
+            }
+            new_help = new_help.replace("\n", "\n\r");
+            cmd.help = Some(new_help);
+        }
+        self.commands.insert(cmd.command.clone(), cmd);
     }
 
     /// Start the REPL
@@ -58,6 +74,7 @@ where
         self.exit.store(false, Ordering::SeqCst);
         let mut stdout = io::stdout();
         crossterm::terminal::enable_raw_mode()?;
+        stdout.queue(EnableLineWrap {})?.flush()?;
 
         // print prompt first time
         self.refresh_prompt_status(&mut stdout, None)?;
@@ -94,10 +111,6 @@ where
             KeyCode::Enter => {
                 let success = match self.parse_and_execute_command(self.history.get_line()) {
                     Ok(msg) => {
-                        stdout
-                            .queue(terminal::ScrollUp(1))?
-                            .queue(cursor::MoveToNextLine(1))?;
-                        self.history.add_line();
                         key_message = Some(msg);
                         true
                     }
@@ -106,6 +119,8 @@ where
                         false
                     }
                 };
+                stdout.queue(terminal::ScrollUp(1))?;
+                self.history.add_line();
                 success
             }
             _ => false,
@@ -131,30 +146,28 @@ where
         stdout: &mut Stdout,
         output_msg: Option<String>,
     ) -> crossterm::Result<()> {
-        let (_, cursor_row) = cursor::position()?;
         let (_, rows) = terminal::size()?;
 
-        // check if enter was pressed
-        if cursor_row + 1 == rows {
-            // cursor reached last line -> add a new line
-            stdout.queue(terminal::ScrollUp(1))?;
-        }
         let prompt = &self.prompt;
 
         // print new status line
-        stdout
-            .queue(cursor::MoveTo(0, rows))?
-            .queue(terminal::Clear(ClearType::CurrentLine))?;
-        if let Some(x) = output_msg {
-            stdout.queue(style::Print(x))?;
-        } else {
-            stdout.queue(style::Print(
-                self.app.get_mut().unwrap().get_status().negative(),
-            ))?;
+        if let Some(msg) = output_msg {
+            stdout
+                .queue(terminal::Clear(ClearType::CurrentLine))?
+                .queue(cursor::MoveToColumn(0))?
+                .queue(style::Print(msg))?
+                .queue(terminal::ScrollUp(1))?
+                .queue(cursor::MoveToNextLine(1))?;
         }
 
-        // print new prompt
         stdout
+            // print status line
+            .queue(cursor::MoveTo(0, rows))?
+            .queue(terminal::Clear(ClearType::CurrentLine))?
+            .queue(style::Print(
+                self.app.get_mut().unwrap().get_status().negative(),
+            ))?
+            // print prompt
             .queue(cursor::MoveUp(1))?
             .queue(terminal::Clear(ClearType::CurrentLine))?
             .queue(cursor::MoveToColumn(0))?
@@ -182,8 +195,10 @@ where
             "help" => {
                 // show all commands no argument is given
                 if args.is_empty() {
-                    let msg = format!("Known commands: {}", self.list_commands());
-                    return Ok(msg);
+                    return Ok(format!("Known commands: {}\n{}",
+                              self.list_commands(),
+                              "Use \"help <COMMAND>\" to get the help message for the command if available",
+                    ));
                 }
                 // show help for command given as argument
                 else {

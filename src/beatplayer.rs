@@ -85,7 +85,11 @@ impl ReplApp for BeatPlayer {
     fn get_status(&self) -> String {
         format!(
             "pattern: {}  value: 1/{} bpm: {}  !: {:.3}Hz  +:{:.3}Hz",
-            &self.pattern, &self.beat_value, &self.bpm, &self.ac_beat.frequency, &self.beat.frequency
+            &self.pattern,
+            &self.beat_value,
+            &self.bpm,
+            &self.ac_beat.frequency,
+            &self.beat.frequency
         )
     }
 }

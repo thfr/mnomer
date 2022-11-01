@@ -105,25 +105,23 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
 
     repl.set_command(CommandDefinition {
         command: "bpm".to_string(),
-        function: Box::new(|args, bp: &mut BeatPlayer| {
-            match args {
-                Some(bpm_str) => match bpm_str.parse::<u16>() {
-                    Ok(bpm) => {
-                        if !bp.set_bpm(bpm) {
-                            return Err(format!("Could not set bpm value of {}", bpm));
-                        }
-                        Ok(format!("Bpm set to {}", bpm))
+        function: Box::new(|args, bp: &mut BeatPlayer| match args {
+            Some(bpm_str) => match bpm_str.parse::<u16>() {
+                Ok(bpm) => {
+                    if !bp.set_bpm(bpm) {
+                        return Err(format!("Could not set bpm value of {}", bpm));
                     }
-                    Err(_) => {
-                        Err(format!("Could not parse \"{}\" to a value", bpm_str))
-                    }
-                },
-                None => {
-                    Err(format!("No bpm value supplied"))
+                    Ok(format!("Bpm set to {}", bpm))
                 }
-            }
+                Err(_) => Err(format!("Could not parse \"{}\" to a value", bpm_str)),
+            },
+            None => Err(format!("No bpm value supplied")),
         }),
-        help: Some(String::from("\"bpm <value>\" where <value> >= 1\nThis value is based on a beat value of 4 (1/4 note value)")),
+        help: Some(String::from(format!(
+            "{}\n  {}",
+            "\"bpm <value>\" where <value> >= 1",
+            "This value is based on a beat value of 4 (1/4 note value)"
+        ))),
     });
 
     repl.set_command(CommandDefinition {
@@ -137,10 +135,10 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             None => return Err(format!("No pattern found")),
         }),
         help: Some(String::from(format!(
-            "{}\n{}\n{}",
+            "{}\n  {}\n  {}",
             "\"pattern <pattern>\"",
-            "  <pattern> must be in the form of `[!|+|.]*`",
-            "  `!` = accentuated beat  `+` = normal beat  `.` = pause"
+            "<pattern> must be in the form of `[!|+|.]*`",
+            "`!` = accentuated beat  `+` = normal beat  `.` = pause"
         ))),
     });
 
@@ -165,7 +163,9 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             Ok(format!("Pitch set to {} and {}", pitches[0], pitches[1]))
         }),
         help: Some(String::from(format!(
-            "\"pitch <accentuated beat pitch> <normal beat pitch>\" pitches must should within [20; 20k]Hz"
+            "{}\n  {}",
+            "\"pitch <accentuated beat pitch> <normal beat pitch>\"",
+            "pitches must should within [20; 20k]Hz"
         ))),
     });
     repl.set_command(CommandDefinition {
@@ -183,9 +183,9 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             None => Err(format!("No beat value supplied")),
         }),
         help: Some(String::from(format!(
-            "{}\n{}",
-            "\"beatvalue <note value subdivision for beat pattern>\"",
-            "  defaults to 4 (meaning a beat has a 1/4 note value which is the base for the bpm value)",
+                  "{}\n  {}",
+                  "\"beatvalue <note value subdivision for beat pattern>\"",
+                  "defaults to 4 (meaning a beat has a 1/4 note value which is the base for the bpm value)",
         ))),
     });
 }
