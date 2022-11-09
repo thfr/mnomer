@@ -33,7 +33,7 @@ pub trait ReplApp {
 
 /// Implementation of a Read Print Evaluate Loop (REPL)
 ///
-/// It has a status line that the underlying app needs to fill. It implemts the default commands
+/// It has a status line that the underlying app needs to fill. It implements the default commands
 /// 'quit' and 'help'. The REPL also catches CTRL+c and CTRL+d to exit the application.
 pub struct Repl<T> {
     pub app: Mutex<T>,
@@ -274,7 +274,7 @@ where
 
 /// Parse command and arguments from input
 ///
-/// Splits the input string into a the first word (command) and the rest of the string (arguments)
+/// Splits the input string into the first word (command) and the rest of the string (arguments)
 fn parse_cmd_w_args(input: String) -> (String, String) {
     let (command_str, args_str) = if input.len() == 0 {
         (String::from(""), String::from(""))
