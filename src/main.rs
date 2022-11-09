@@ -81,9 +81,9 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
         function: Box::new(|_, bp: &mut BeatPlayer| {
             let msg = if !bp.is_playing() {
                 bp.play_beat()?;
-                String::from("Start playback")
+                "Start playback".to_string()
             } else {
-                String::from("Playback already running")
+                "Playback already running".to_string()
             };
             Ok(msg)
         }),
@@ -117,11 +117,11 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             },
             None => Err(format!("No bpm value supplied")),
         }),
-        help: Some(String::from(format!(
+        help: Some(format!(
             "{}\n  {}",
             "\"bpm <value>\" where <value> >= 1",
             "This value is based on a beat value of 4 (1/4 note value)"
-        ))),
+        )),
     });
 
     repl.set_command(CommandDefinition {
@@ -134,12 +134,12 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             }
             None => return Err(format!("No pattern found")),
         }),
-        help: Some(String::from(format!(
+        help: Some(format!(
             "{}\n  {}\n  {}",
             "\"pattern <pattern>\"",
             "<pattern> must be in the form of `[!|+|.]*`",
             "`!` = accentuated beat  `+` = normal beat  `.` = pause"
-        ))),
+        )),
     });
 
     repl.set_command(CommandDefinition {
@@ -162,14 +162,15 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             bp.set_pitches(pitches[0], pitches[1])?;
             Ok(format!("Pitch set to {} and {}", pitches[0], pitches[1]))
         }),
-        help: Some(String::from(format!(
+        help: Some(format!(
             "{}\n  {}",
             "\"pitch <accentuated beat pitch> <normal beat pitch>\"",
             "pitches must should within [20; 20k]Hz"
-        ))),
+        )),
     });
+
     repl.set_command(CommandDefinition {
-        command: "beatvalue".into(),
+        command: "beatvalue".to_string(),
         function: Box::new(|args, bp: &mut BeatPlayer| match args {
             Some(beat_value_str) => match beat_value_str.parse::<u16>() {
                 Ok(beat_value) => {
@@ -182,10 +183,10 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             },
             None => Err(format!("No beat value supplied")),
         }),
-        help: Some(String::from(format!(
-                  "{}\n  {}",
-                  "\"beatvalue <note value subdivision for beat pattern>\"",
-                  "defaults to 4 (meaning a beat has a 1/4 note value which is the base for the bpm value)",
-        ))),
+        help: Some(format!(
+            "{}\n  {}",
+            "\"beatvalue <note value subdivision for beat pattern>\"",
+            "defaults to 4 (beat has a 1/4 note value which is the base for the bpm value)"
+        )),
     });
 }

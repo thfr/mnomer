@@ -97,7 +97,8 @@ impl ReplApp for BeatPlayer {
 impl ToString for BeatPlayer {
     fn to_string(&self) -> String {
         format!(
-            "bpm: {:4}, beat_value: 1/{}, pattern: {:?}, accent: {:.2}Hz, normal: {:.2}Hz, playing: {}",
+            "bpm: {:4}, beat_value: 1/{}, pattern: {:?}, accent: {:.2}Hz, normal: {:.2}Hz, \
+            playing: {}",
             self.bpm,
             self.beat_value,
             self.pattern,
