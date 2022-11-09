@@ -26,11 +26,15 @@ pub struct CommandDefinition<T> {
     pub help: Option<String>,
 }
 
-/// Requirement for object that the REPL interacts with
+/// Requirement for the object that the REPL interacts with
 pub trait ReplApp {
     fn get_status(&self) -> String;
 }
 
+/// Implementation of a Read Print Evaluate Loop (REPL)
+///
+/// It has a status line that the underlying app needs to fill. It implemts the default commands
+/// 'quit' and 'help'. The REPL also catches CTRL+c and CTRL+d to exit the application.
 pub struct Repl<T> {
     pub app: Mutex<T>,
     pub commands: HashMap<String, CommandDefinition<T>>,
@@ -82,9 +86,10 @@ where
         while !self.exit.load(Ordering::SeqCst) {
             match crossterm::event::read()? {
                 Event::Key(event) => {
-                    if event.code == KeyCode::Char('c') && event.modifiers == KeyModifiers::CONTROL
-                    {
-                        break;
+                    if event.modifiers == KeyModifiers::CONTROL {
+                        if event.code == KeyCode::Char('c') || event.code == KeyCode::Char('d') {
+                            break;
+                        }
                     };
                     self.on_key_pressed(&mut stdout, &event.code)?;
                 }
@@ -187,6 +192,7 @@ where
         // remove every white space from left, iterate over the lines, take only the first line
         let (parsed_cmd, args) = parse_cmd_w_args(input);
 
+        // match predefined commands
         match parsed_cmd.as_str() {
             "quit" | "exit" => {
                 self.exit.store(true, Ordering::SeqCst);
@@ -195,9 +201,11 @@ where
             "help" => {
                 // show all commands no argument is given
                 if args.is_empty() {
-                    return Ok(format!("Known commands: {}\n{}",
-                              self.list_commands(),
-                              "Use \"help <COMMAND>\" to get the help message for the command if available",
+                    return Ok(format!(
+                        "Known commands: {}\n{}",
+                        self.list_commands(),
+                        "Use \"help <COMMAND>\" to get the help message for the command if \
+                        available",
                     ));
                 }
                 // show help for command given as argument
@@ -216,7 +224,8 @@ where
             }
             _ => (),
         }
-        // check if parsed command is in self.commands and execute its function
+
+        // match custom commands
         match self.commands.get_mut(parsed_cmd.as_str()) {
             Some(cmddef) => {
                 let cmd_result = if !args.is_empty() {
@@ -286,6 +295,8 @@ fn parse_cmd_w_args(input: String) -> (String, String) {
 }
 
 /// Represent command history
+///
+/// Implements a virtual cursor (row, column) and provides keystroke implementations for cursor navigation
 pub struct InputHistory {
     /// Previous inputs, should not be altered
     previous_lines: Vec<Vec<char>>,
