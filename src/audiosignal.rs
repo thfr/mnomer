@@ -44,10 +44,10 @@ impl<T: Copy> AudioSignal<T> {
     }
 }
 
-impl Into<AudioSignal<u16>> for AudioSignal<f32> {
-    fn into(self) -> AudioSignal<u16> {
-        let mut audio: Vec<u16> = Vec::with_capacity(self.signal.len());
-        for sample in self.signal.into_iter() {
+impl From<AudioSignal<f32>> for AudioSignal<u16> {
+    fn from(audio_signal: AudioSignal<f32>) -> Self {
+        let mut audio: Vec<u16> = Vec::with_capacity(audio_signal.signal.len());
+        for sample in audio_signal.signal.into_iter() {
             let saturated_sample = if sample > 1f32 {
                 1f32
             } else if sample < -1f32 {
@@ -60,15 +60,15 @@ impl Into<AudioSignal<u16>> for AudioSignal<f32> {
         AudioSignal {
             signal: audio,
             index: 0,
-            tone: self.tone,
+            tone: audio_signal.tone,
         }
     }
 }
 
-impl Into<AudioSignal<i16>> for AudioSignal<f32> {
-    fn into(self) -> AudioSignal<i16> {
-        let mut audio: Vec<i16> = Vec::with_capacity(self.signal.len());
-        for sample in self.signal.into_iter() {
+impl From<AudioSignal<f32>> for AudioSignal<i16> {
+    fn from(audio_signal: AudioSignal<f32>) -> Self {
+        let mut audio: Vec<i16> = Vec::with_capacity(audio_signal.signal.len());
+        for sample in audio_signal.signal.into_iter() {
             let saturated_sample = if sample > 1f32 {
                 1f32
             } else if sample < -1f32 {
@@ -81,7 +81,7 @@ impl Into<AudioSignal<i16>> for AudioSignal<f32> {
         AudioSignal {
             signal: audio,
             index: 0,
-            tone: self.tone,
+            tone: audio_signal.tone,
         }
     }
 }
@@ -198,7 +198,7 @@ impl AudioSignal<f32> {
 
     pub fn fade_in_out(&mut self, fade_in_time: f64, fade_out_time: f64) -> Result<(), ()> {
         // early return
-        if fade_in_time < 0.0 || fade_in_time < 0.0 {
+        if fade_in_time < 0.0 || fade_out_time < 0.0 {
             return Err(());
         }
         // *Exponential Fading* is used because it is more pleasant to ear than linear fading.

@@ -31,14 +31,12 @@ fn main() {
         4,
         normal_beat,
         accentuated_beat,
-        BeatPattern {
-            0: vec![
-                BeatPatternType::Accent,
-                BeatPatternType::Beat,
-                BeatPatternType::Beat,
-                BeatPatternType::Beat,
-            ],
-        },
+        BeatPattern(vec![
+            BeatPatternType::Accent,
+            BeatPatternType::Beat,
+            BeatPatternType::Beat,
+            BeatPatternType::Beat,
+        ]),
     ));
 
     // create the user interface, the Read Evaluate Print Loop (REPL)
@@ -115,7 +113,7 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
                 }
                 Err(_) => Err(format!("Could not parse \"{}\" to a value", bpm_str)),
             },
-            None => Err(format!("No bpm value supplied")),
+            None => Err("No bpm value supplied".to_string()),
         }),
         help: Some(format!(
             "{}\n  {}",
@@ -130,9 +128,9 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             Some(pattern_str) => {
                 let pattern = BeatPattern::try_from(pattern_str.as_str())?;
                 bp.set_pattern(&pattern)?;
-                return Ok(format!("Pattern set to {}", pattern));
+                Ok(format!("Pattern set to {}", pattern))
             }
-            None => return Err(format!("No pattern found")),
+            None => Err("No pattern found".to_string()),
         }),
         help: Some(format!(
             "{}\n  {}\n  {}",
@@ -148,16 +146,12 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             let pitches: Vec<f64> = match args {
                 Some(pitches) => pitches
                     .split(' ')
-                    .filter(|x| match x.parse::<f64>() {
-                        Ok(_) => true,
-                        Err(_) => false,
-                    })
-                    .map(|x| x.parse::<f64>().unwrap())
+                    .filter_map(|x| x.parse::<f64>().ok())
                     .collect(),
-                None => return Err(format!("No pattern found")),
+                None => return Err("No pattern found".to_string()),
             };
             if pitches.len() != 2 {
-                return Err(String::from("Wrong number of pitches"));
+                return Err("Wrong number of pitches".to_string());
             };
             bp.set_pitches(pitches[0], pitches[1])?;
             Ok(format!("Pitch set to {} and {}", pitches[0], pitches[1]))
@@ -181,7 +175,7 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
                 }
                 Err(_) => Err(format!("Could not parse \"{}\" to a value", beat_value_str)),
             },
-            None => Err(format!("No beat value supplied")),
+            None => Err("No beat value supplied".to_string()),
         }),
         help: Some(format!(
             "{}\n  {}",

@@ -12,7 +12,7 @@ use std::{convert::TryFrom, f64, fmt::Display, sync::Mutex};
 pub const BASE_BEAT_VALUE: u16 = 4;
 
 /// Metronome beat pattern types
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum BeatPatternType {
     Accent,
     Beat,
@@ -33,9 +33,9 @@ impl TryFrom<&char> for BeatPatternType {
     }
 }
 
-impl Into<char> for &BeatPatternType {
-    fn into(self) -> char {
-        match self {
+impl From<&BeatPatternType> for char {
+    fn from(beat_pattern: &BeatPatternType) -> char {
+        match beat_pattern {
             BeatPatternType::Accent => '!',
             BeatPatternType::Beat => '+',
             BeatPatternType::Pause => '.',
@@ -140,9 +140,8 @@ impl BeatPlayer {
             .start_stop_mtx
             .lock()
             .expect("Playback start mutex is poisoned, aborting");
-        match self.stream.as_mut() {
-            Some(x) => x.pause().expect("Error during pause"),
-            None => (),
+        if let Some(x) = self.stream.as_mut() {
+            x.pause().expect("Error during pause");
         };
         self.stream = None;
     }
@@ -164,20 +163,12 @@ impl BeatPlayer {
         let previous_pattern = pattern.0.clone();
         self.pattern.0 = pattern.0.clone();
 
-        if restart {
-            match self.play_beat() {
-                Err(_) => {
-                    self.pattern.0 = previous_pattern;
-                    return Err(
-                        "New pattern does not seem to work, returning to previous pattern"
-                            .to_string(),
-                    );
-                }
-                _ => (),
-            };
+        if restart && self.play_beat().is_err() {
+            self.pattern.0 = previous_pattern;
+            Err("New pattern does not seem to work, returning to previous pattern".to_string())
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 
     /// Set the beat value
@@ -201,17 +192,12 @@ impl BeatPlayer {
         let previous_beat_value = self.beat_value;
         self.beat_value = beat_value;
 
-        if restart {
-            match self.play_beat() {
-                Err(_) => {
-                    self.beat_value = previous_beat_value;
-                    return false;
-                }
-                _ => (),
-            };
+        if restart && self.play_beat().is_err() {
+            self.beat_value = previous_beat_value;
+            false
+        } else {
+            true
         }
-
-        true
     }
 
     /// Set the beats per minute
@@ -232,22 +218,17 @@ impl BeatPlayer {
         let previous_bpm = self.bpm;
         self.bpm = bpm;
 
-        if restart {
-            match self.play_beat() {
-                Err(_) => {
-                    self.bpm = previous_bpm;
-                    return false;
-                }
-                _ => (),
-            };
+        if restart && self.play_beat().is_err() {
+            self.bpm = previous_bpm;
+            false
+        } else {
+            true
         }
-
-        true
     }
 
     pub fn set_pitches(&mut self, accent_pitch: f64, normal_pitch: f64) -> Result<(), String> {
         let check_pitch_bounds = |x: f64| -> Result<(), String> {
-            if x >= 20.0 && x <= 20000.0 {
+            if (20.0..=20000.0).contains(&x) {
                 Ok(())
             } else {
                 Err(format!("Value {} out of range", x))
@@ -435,7 +416,7 @@ fn create_cpal_stream(
     //TODO: unify these lambdas somehow
     let stream = match sampletype {
         SampleFormat::F32 => {
-            let mut playback_buffer: AudioSignal<f32> = playback_buffer.into();
+            let mut playback_buffer: AudioSignal<f32> = playback_buffer;
             device.build_output_stream(
                 &my_config,
                 move |data, _| {

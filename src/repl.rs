@@ -65,7 +65,7 @@ where
             if append_newline {
                 new_help.push('\n');
             }
-            new_help = new_help.replace("\n", "\n\r");
+            new_help = new_help.replace('\n', "\n\r");
             cmd.help = Some(new_help);
         }
         self.commands.insert(cmd.command.clone(), cmd);
@@ -84,16 +84,13 @@ where
         self.refresh_prompt_status(&mut stdout, None)?;
 
         while !self.exit.load(Ordering::SeqCst) {
-            match crossterm::event::read()? {
-                Event::Key(event) => {
-                    if event.modifiers == KeyModifiers::CONTROL {
-                        if event.code == KeyCode::Char('c') || event.code == KeyCode::Char('d') {
-                            break;
-                        }
-                    };
-                    self.on_key_pressed(&mut stdout, &event.code)?;
-                }
-                _ => (),
+            if let Event::Key(event) = crossterm::event::read()? {
+                if event.modifiers == KeyModifiers::CONTROL
+                    && (event.code == KeyCode::Char('c') || event.code == KeyCode::Char('d'))
+                {
+                    break;
+                };
+                self.on_key_pressed(&mut stdout, &event.code)?;
             }
         }
         Ok(())
@@ -260,12 +257,12 @@ where
         let mut commands = String::new();
         for (cmd, cmddef) in self.commands.iter() {
             if cmd.is_empty() {
-                commands += format!("<ENTER> ").as_ref();
+                commands += "<ENTER> ".to_string().as_ref();
             } else {
                 commands += format!("\"{}\" ", cmddef.command).as_ref();
             }
         }
-        if commands.len() > 0 {
+        if !commands.is_empty() {
             commands.remove(commands.len() - 1);
         }
         commands
@@ -276,13 +273,10 @@ where
 ///
 /// Splits the input string into the first word (command) and the rest of the string (arguments)
 fn parse_cmd_w_args(input: String) -> (String, String) {
-    let (command_str, args_str) = if input.len() == 0 {
+    let (command_str, args_str) = if input.is_empty() {
         (String::from(""), String::from(""))
     } else {
-        let trimmed_input = match input.trim_start().lines().next() {
-            Some(string) => string,
-            None => "",
-        };
+        let trimmed_input = input.trim_start().lines().next().unwrap_or("");
         match trimmed_input.find(char::is_whitespace) {
             Some(pos) => (
                 String::from(&trimmed_input[0..pos]),
@@ -320,7 +314,7 @@ impl InputHistory {
     }
 
     fn _row_in_previous_lines(&self) -> bool {
-        self.row < self.previous_lines.len() && self.previous_lines.len() > 0
+        self.row < self.previous_lines.len() && !self.previous_lines.is_empty()
     }
 
     fn _prepare_modifying_access(&mut self) {
@@ -357,7 +351,7 @@ impl InputHistory {
 
     fn add_line(&mut self) -> bool {
         self._prepare_modifying_access();
-        let current_line = std::mem::replace(&mut self.writing_buffer, vec![]);
+        let current_line = std::mem::take(&mut self.writing_buffer);
         self.previous_lines.push(current_line);
         self.row = self.previous_lines.len();
         self.column = 0;
