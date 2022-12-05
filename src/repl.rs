@@ -51,6 +51,18 @@ impl<T> Repl<T>
 where
     T: ReplApp,
 {
+    pub fn new(app: Mutex<T>, prompt: String) -> Self {
+        let repl = Repl {
+            app,
+            commands: HashMap::new(),
+            exit: false.into(),
+            prompt,
+            status_line: "".to_string(),
+            history: InputHistory::new(),
+        };
+        repl
+    }
+
     /// Add or update a command a REPL command
     ///
     /// A command is updated if `cmddef.command` matches a already added command
@@ -205,7 +217,7 @@ where
                         "Known commands: {}\n{}",
                         self.list_commands(),
                         "Use \"help <COMMAND>\" to get the help message for the command if \
-                        available",
+                            available",
                     ));
                 }
                 // show help for command given as argument
@@ -260,9 +272,15 @@ where
         let mut commands = String::new();
         for (cmd, cmddef) in self.commands.iter() {
             if cmd.is_empty() {
-                commands += "<ENTER> ".to_string().as_ref();
+                commands += "<ENTER> ";
             } else {
                 commands += format!("\"{}\" ", cmddef.command).as_ref();
+            }
+        }
+        let built_ins = vec!["help", "quit", "exit"];
+        for cmd in built_ins {
+            if !commands.contains(cmd) {
+                commands += format!("\"{}\" ", cmd).as_ref()
             }
         }
         if !commands.is_empty() {

@@ -4,9 +4,9 @@ mod repl;
 
 use audiosignal::{freqency_relative_semitone_equal_temperament, ToneConfiguration};
 use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
-use repl::{CommandDefinition, InputHistory, Repl};
+use repl::{CommandDefinition, Repl};
+use std::convert::TryFrom;
 use std::sync::Mutex;
-use std::{collections::HashMap, convert::TryFrom};
 
 fn main() {
     // Create the tone configurations for the beatplayer
@@ -40,14 +40,7 @@ fn main() {
     ));
 
     // create the user interface, the Read Evaluate Print Loop (REPL)
-    let mut repl = Repl {
-        app: beatplayer,
-        commands: HashMap::new(),
-        exit: false.into(),
-        prompt: "♩♩♩♩: ".to_string(),
-        status_line: "This is mnomer".to_string(),
-        history: InputHistory::new(),
-    };
+    let mut repl = Repl::new(beatplayer, "♩♩♩♩: ".to_string());
 
     add_repl_commands(&mut repl);
 
@@ -164,7 +157,7 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
     });
 
     repl.set_command(CommandDefinition {
-        command: "beatvalue".to_string(),
+        command: "value".to_string(),
         function: Box::new(|args, bp: &mut BeatPlayer| match args {
             Some(beat_value_str) => match beat_value_str.parse::<u16>() {
                 Ok(beat_value) => {
@@ -179,7 +172,7 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
         }),
         help: Some(format!(
             "{}\n  {}",
-            "\"beatvalue <note value subdivision for beat pattern>\"",
+            "\"value <note value subdivision for beat pattern>\"",
             "defaults to 4 (beat has a 1/4 note value which is the base for the bpm value)"
         )),
     });

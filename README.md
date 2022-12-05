@@ -1,58 +1,50 @@
 # Mnomer
 
 Mnomer is a metronom application written in Rust.
-It is an enhanced copy of [mnome](https://github.com/thfr/mnome),
-a C++ project of mine.
+It is an enhanced version of the C++ project [mnome](https://github.com/thfr/mnome).
 The main purpose is to experiment with and train myself in the Rust programming language.
 
 It should work on Linux, macOS and Windows.
 
-Current version is [0.1.0](https://github.com/thfr/mnomer/releases/tag/0.1.0).
+Current version is [0.2.0](https://github.com/thfr/mnomer/releases/tag/0.2.0).
 
 ## Features
 
 * a simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
 * 3 beat types: Accent, Beat and Pause
 * start/stop with ENTER key
-* pitch, bpm and beat pattern change during playback
+* pitch, bpm, beat pattern and beat value changable
+* help
 
 ## Usage
 
-Following commands are implemented: `start`, `stop`, `bpm <number>`,
-`pitch <accent> <normal>` and `pattern <pattern>` with `<pattern>` adhering to `[!|+|\.]*`.
+Following commands are implemented:
 
-```txt
+* `start`
+* `stop`
+* `bpm <number>`, based on the beat value 1/4
+* `pitch <accent> <normal>`
+* `pattern <pattern>` with `<pattern>` adhering to `[!|+|\.]*`
+* `value <beat value>`, defaults to `4` which means the beat is 1/4
+* `help [<command>]`, shows the commands when no additonal command is given or the help for a specific command
+* `quit`, `exit` or CTRL+C exits the application
+
+```plain
+♩♩♩: help
+Known commands: "pitch" "value" "bpm" <ENTER> "start" "stop" "pattern"
+♩♩♩♩: help pitch
+"pitch <accentuated beat pitch> <normal beat pitch>"
+  pitches must should within [20; 20k]Hz
+♩♩♩♩: help value
+"value <note value subdivision for beat pattern>"
+  defaults to 4 (beat has a 1/4 note value which is the base for the bpm value)
+♩♩♩♩: help bpm
+"bpm <value>" where <value> >= 1
+  This value is based on a beat value of 4 (1/4 note value)
+♩♩♩♩: help pattern
+"pattern <pattern>"
+  <pattern> must be in the form of `[!|+|.]*`
+  `!` = accentuated beat  `+` = normal beat  `.` = pause
 ♩♩♩♩:
-bpm:  100, pattern: BeatPattern([Accent, Beat, Beat, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: true
-
-♩♩♩♩: bpm 80
-bpm:   80, pattern: BeatPattern([Accent, Beat, Beat, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: true
-
-♩♩♩♩: pattern !+.+
-bpm:   80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: true
-
-♩♩♩♩: start
-bpm:   80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: true
-
-♩♩♩♩: stop
-bpm:   80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), accent: 587.33Hz, normal: 440.00Hz, playing: false
-
-♩♩♩♩: bpm
-Error in command "bpm": No bpm value supplied
-Command usage: "bpm <value>" where <value> >= 1
-
-♩♩♩♩: help
-"help" command unknown
-Following commands are defined:
-<ENTER>
-"start"
-"stop"
-"bpm"
-"pattern"
-"pitch"
-
-♩♩♩♩: pitch 800 600
-bpm:   80, pattern: BeatPattern([Accent, Beat, Pause, Beat]), accent: 800.00Hz, normal: 600.00Hz, playing: false
-
-♩♩♩♩: quit
+pattern: !+++  value: 1/4 bpm: 100  !: 587.330Hz  +:440.000Hz
 ```
