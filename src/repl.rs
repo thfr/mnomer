@@ -16,12 +16,15 @@ use std::{
     iter::FromIterator,
 };
 
+/// CommandFunction is the callback that implements the actual behavior of the command
+pub type CommandFunction<T> = dyn FnMut(Option<String>, &mut T) -> Result<String, String>;
+
 /// Definition of a command that the REPL recognizes and executes
 pub struct CommandDefinition<T> {
     /// Name of command, will be matched with the user input
     pub command: String,
     /// Take an argument, do stuff and return Messages to display
-    pub function: Box<dyn FnMut(Option<String>, &mut T) -> Result<String, String>>,
+    pub function: Box<CommandFunction<T>>,
     /// Help message to be displayed after the `function` returns an Error object
     pub help: Option<String>,
 }
