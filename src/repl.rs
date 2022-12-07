@@ -7,27 +7,52 @@ use crossterm::{
     QueueableCommand,
 };
 
-use std::string::String;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
 use std::{
     collections::HashMap,
+    error::Error,
+    fmt,
     io::{self, Stdout, Write},
     iter::FromIterator,
+    string::String,
+    sync::atomic::{AtomicBool, Ordering},
+    sync::Mutex,
 };
 
 /// CommandFunction is the callback that implements the actual behavior of the command
-pub type CommandFunction<T> = dyn FnMut(Option<String>, &mut T) -> Result<String, String>;
+type CommandFunction<T> = dyn FnMut(Option<String>, &mut T) -> Result<String, String>;
 
 /// Definition of a command that the REPL recognizes and executes
-pub struct CommandDefinition<T> {
+struct CommandDefinition<T> {
     /// Name of command, will be matched with the user input
-    pub command: String,
+    pub name: String,
     /// Take an argument, do stuff and return Messages to display
-    pub function: Box<CommandFunction<T>>,
+    pub function: Option<Box<CommandFunction<T>>>,
     /// Help message to be displayed after the `function` returns an Error object
     pub help: Option<String>,
 }
+
+/// REPL built-in commands, may not be overwritten
+const BUILT_INS: [(&str, &str); 3] = [
+    ("help", "Display help"),
+    ("quit", "Terminate the application"),
+    ("exit", "Terminate the application"),
+];
+
+/// Error that is given when you overwrite a built-in command
+#[derive(Debug, Clone)]
+pub struct BuiltInOverwriteError {
+    cmd_name: String,
+}
+impl fmt::Display for BuiltInOverwriteError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "setting {} is not allowed because it is a built-in command",
+            self.cmd_name
+        )
+    }
+}
+impl Error for BuiltInOverwriteError {}
 
 /// Requirement for the object that the REPL interacts with
 pub trait ReplApp {
@@ -38,37 +63,62 @@ pub trait ReplApp {
 ///
 /// It has a status line that the underlying app needs to fill. It implements the default commands
 /// 'quit' and 'help'. The REPL also catches CTRL+c and CTRL+d to exit the application.
-pub struct Repl<T> {
-    pub app: Mutex<T>,
-    pub commands: HashMap<String, CommandDefinition<T>>,
-    pub exit: AtomicBool,
-    pub prompt: String,
-    pub status_line: String,
-    pub history: InputHistory,
+pub struct Repl<T: ReplApp> {
+    app: Mutex<T>,
+    commands: HashMap<String, CommandDefinition<T>>,
+    exit: AtomicBool,
+    prompt: String,
+    history: InputHistory,
 }
 
 impl<T> Repl<T>
 where
     T: ReplApp,
 {
-    pub fn new(app: Mutex<T>, prompt: String) -> Self {
-        let repl = Repl {
-            app,
+    pub fn new(app: T, prompt: String) -> Self {
+        let mut repl = Repl {
+            app: Mutex::new(app),
             commands: HashMap::new(),
             exit: false.into(),
             prompt,
-            status_line: "".to_string(),
             history: InputHistory::new(),
         };
+        for (cmd, help) in BUILT_INS {
+            repl.commands.insert(
+                cmd.to_string(),
+                CommandDefinition {
+                    name: cmd.to_string(),
+                    function: None,
+                    help: Some(help.to_string()),
+                },
+            );
+        }
         repl
     }
 
     /// Add or update a command a REPL command
     ///
     /// A command is updated if `cmddef.command` matches a already added command
-    pub fn set_command(&mut self, cmddef: CommandDefinition<T>) {
-        let mut cmd = cmddef;
+    pub fn set_command(
+        &mut self,
+        name: String,
+        function: Box<CommandFunction<T>>,
+        help: Option<String>,
+    ) -> Result<(), BuiltInOverwriteError> {
+        // check against built in commands
+        let name_is_builtin = BUILT_INS
+            .into_iter()
+            .any(|built_in| built_in.0 == name.as_str());
+        if name_is_builtin {
+            return Err(BuiltInOverwriteError { cmd_name: name });
+        }
 
+        // add given command
+        let mut cmd = CommandDefinition {
+            name,
+            function: Some(function),
+            help,
+        };
         // make sure that each help command ends with a new line
         if let Some(help_msg) = cmd.help {
             let append_newline = match help_msg.chars().last() {
@@ -83,7 +133,8 @@ where
             new_help = new_help.replace('\n', "\n\r");
             cmd.help = Some(new_help);
         }
-        self.commands.insert(cmd.command.clone(), cmd);
+        self.commands.insert(cmd.name.clone(), cmd);
+        Ok(())
     }
 
     /// Start the REPL
@@ -108,6 +159,12 @@ where
                 self.on_key_pressed(&mut stdout, &event.code)?;
             }
         }
+        // Exit, make sure to leave enough new lines so that the status line remain in command
+        // window scroll back
+        stdout
+            .queue(terminal::ScrollUp(1))?
+            .queue(cursor::MoveToNextLine(3))?
+            .flush()?;
         Ok(())
     }
 
@@ -240,16 +297,19 @@ where
         // match custom commands
         match self.commands.get_mut(parsed_cmd.as_str()) {
             Some(cmddef) => {
-                let cmd_result = if !args.is_empty() {
-                    (cmddef.function)(Some(args), self.app.get_mut().unwrap())
+                let cmd_result = if cmddef.function.is_some() {
+                    if !args.is_empty() {
+                        (cmddef.function.as_mut().unwrap())(Some(args), self.app.get_mut().unwrap())
+                    } else {
+                        (cmddef.function.as_mut().unwrap())(None, self.app.get_mut().unwrap())
+                    }
                 } else {
-                    (cmddef.function)(None, self.app.get_mut().unwrap())
+                    Err("No function assotiated".to_string())
                 };
                 match cmd_result {
                     Ok(msg) => Ok(msg),
                     Err(err_msg) => {
-                        let mut msg =
-                            format!("Error in command \"{}\": {}", cmddef.command, err_msg);
+                        let mut msg = format!("Error in command \"{}\": {}", cmddef.name, err_msg);
                         if let Some(help_msg) = &cmddef.help {
                             msg += format!(" Command usage: {}", help_msg).as_ref();
                         }
@@ -274,13 +334,7 @@ where
             if cmd.is_empty() {
                 commands += "<ENTER> ";
             } else {
-                commands += format!("\"{}\" ", cmddef.command).as_ref();
-            }
-        }
-        let built_ins = vec!["help", "quit", "exit"];
-        for cmd in built_ins {
-            if !commands.contains(cmd) {
-                commands += format!("\"{}\" ", cmd).as_ref()
+                commands += format!("\"{}\" ", cmddef.name).as_ref();
             }
         }
         if !commands.is_empty() {

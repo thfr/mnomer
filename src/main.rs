@@ -4,16 +4,16 @@ mod repl;
 
 use audiosignal::{freqency_relative_semitone_equal_temperament, ToneConfiguration};
 use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
-use repl::{CommandDefinition, Repl};
+use repl::{BuiltInOverwriteError, Repl};
 use std::convert::TryFrom;
-use std::sync::Mutex;
+use std::error::Error;
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     // Create the tone configurations for the beatplayer
     let freq = 440.0;
     let normal_beat = ToneConfiguration {
         frequency: freq,
-        sample_rate: 48000.0, // may be changed by the beatplayer for match the audio device
+        sample_rate: 48000.0, // may be changed by the beatplayer to match the audio device
         length: 0.05,         // 50 ms
         overtones: 1,
         channels: 1,
@@ -26,7 +26,7 @@ fn main() {
     };
 
     // beatplayer takes care of generating the beat and its playback
-    let beatplayer = Mutex::new(BeatPlayer::new(
+    let beatplayer = BeatPlayer::new(
         100,
         4,
         normal_beat,
@@ -37,24 +37,23 @@ fn main() {
             BeatPatternType::Beat,
             BeatPatternType::Beat,
         ]),
-    ));
+    );
 
     // create the user interface, the Read Evaluate Print Loop (REPL)
     let mut repl = Repl::new(beatplayer, "♩♩♩♩: ".to_string());
 
-    add_repl_commands(&mut repl);
+    add_repl_commands(&mut repl)?;
 
-    match repl.run() {
-        Ok(_) => (),
-        Err(_) => println!("Something went wrong with the REPL"),
-    };
+    repl.run()?;
+
+    Ok(())
 }
 
-fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
-    repl.set_command(CommandDefinition {
+fn add_repl_commands(repl: &mut Repl<BeatPlayer>) -> Result<(), BuiltInOverwriteError> {
+    repl.set_command(
         // ENTER to toggle playback
-        command: "".to_string(),
-        function: Box::new(|_, bp: &mut BeatPlayer| {
+        "".to_string(),
+        Box::new(|_, bp: &mut BeatPlayer| {
             let msg = if bp.is_playing() {
                 bp.stop();
                 String::from("Stop playback")
@@ -64,12 +63,12 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             };
             Ok(msg)
         }),
-        help: None,
-    });
+        None,
+    )?;
 
-    repl.set_command(CommandDefinition {
-        command: "start".to_string(),
-        function: Box::new(|_, bp: &mut BeatPlayer| {
+    repl.set_command(
+        "start".to_string(),
+        Box::new(|_, bp: &mut BeatPlayer| {
             let msg = if !bp.is_playing() {
                 bp.play_beat()?;
                 "Start playback".to_string()
@@ -78,12 +77,12 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             };
             Ok(msg)
         }),
-        help: None,
-    });
+        Some("Start the metronome".to_string()),
+    )?;
 
-    repl.set_command(CommandDefinition {
-        command: "stop".to_string(),
-        function: Box::new(|_, bp: &mut BeatPlayer| {
+    repl.set_command(
+        "stop".to_string(),
+        Box::new(|_, bp: &mut BeatPlayer| {
             if !bp.is_playing() {
                 Err(String::from("Playback is not running"))
             } else {
@@ -91,12 +90,12 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
                 Ok(String::from("Playback stopped"))
             }
         }),
-        help: None,
-    });
+        Some("Stop the metronome".to_string()),
+    )?;
 
-    repl.set_command(CommandDefinition {
-        command: "bpm".to_string(),
-        function: Box::new(|args, bp: &mut BeatPlayer| match args {
+    repl.set_command(
+        "bpm".to_string(),
+        Box::new(|args, bp: &mut BeatPlayer| match args {
             Some(bpm_str) => match bpm_str.parse::<u16>() {
                 Ok(bpm) => {
                     if !bp.set_bpm(bpm) {
@@ -108,16 +107,16 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             },
             None => Err("No bpm value supplied".to_string()),
         }),
-        help: Some(format!(
+        Some(format!(
             "{}\n  {}",
             "\"bpm <value>\" where <value> >= 1",
             "This value is based on a beat value of 4 (1/4 note value)"
         )),
-    });
+    )?;
 
-    repl.set_command(CommandDefinition {
-        command: "pattern".to_string(),
-        function: Box::new(|args, bp: &mut BeatPlayer| match args {
+    repl.set_command(
+        "pattern".to_string(),
+        Box::new(|args, bp: &mut BeatPlayer| match args {
             Some(pattern_str) => {
                 let pattern = BeatPattern::try_from(pattern_str.as_str())?;
                 bp.set_pattern(&pattern)?;
@@ -125,17 +124,17 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             }
             None => Err("No pattern found".to_string()),
         }),
-        help: Some(format!(
+        Some(format!(
             "{}\n  {}\n  {}",
             "\"pattern <pattern>\"",
             "<pattern> must be in the form of `[!|+|.]*`",
             "`!` = accentuated beat  `+` = normal beat  `.` = pause"
         )),
-    });
+    )?;
 
-    repl.set_command(CommandDefinition {
-        command: "pitch".to_string(),
-        function: Box::new(|args, bp: &mut BeatPlayer| {
+    repl.set_command(
+        "pitch".to_string(),
+        Box::new(|args, bp: &mut BeatPlayer| {
             let pitches: Vec<f64> = match args {
                 Some(pitches) => pitches
                     .split(' ')
@@ -149,16 +148,16 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             bp.set_pitches(pitches[0], pitches[1])?;
             Ok(format!("Pitch set to {} and {}", pitches[0], pitches[1]))
         }),
-        help: Some(format!(
+        Some(format!(
             "{}\n  {}",
             "\"pitch <accentuated beat pitch> <normal beat pitch>\"",
             "pitches must should within [20; 20k]Hz"
         )),
-    });
+    )?;
 
-    repl.set_command(CommandDefinition {
-        command: "value".to_string(),
-        function: Box::new(|args, bp: &mut BeatPlayer| match args {
+    repl.set_command(
+        "value".to_string(),
+        Box::new(|args, bp: &mut BeatPlayer| match args {
             Some(beat_value_str) => match beat_value_str.parse::<u16>() {
                 Ok(beat_value) => {
                     if !bp.set_beat_value(beat_value) {
@@ -170,10 +169,12 @@ fn add_repl_commands(repl: &mut Repl<BeatPlayer>) {
             },
             None => Err("No beat value supplied".to_string()),
         }),
-        help: Some(format!(
+        Some(format!(
             "{}\n  {}",
             "\"value <note value subdivision for beat pattern>\"",
             "defaults to 4 (beat has a 1/4 note value which is the base for the bpm value)"
         )),
-    });
+    )?;
+
+    Ok(())
 }
