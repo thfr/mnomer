@@ -281,12 +281,12 @@ impl BeatPlayer {
         let beats_per_minute = self.bpm as f64 * self.beat_value as f64 / BASE_BEAT_VALUE as f64;
         let samples_per_beat = ((60.0 * sample_rate) / beats_per_minute).round() as isize;
 
-        let silence_samples = samples_per_beat as isize - beat.signal.len() as isize;
+        let silence_samples = samples_per_beat - beat.signal.len() as isize;
         if silence_samples < 0 {
             return Err("Beat to long to play at current bpm");
         }
 
-        let ac_silence_samples = samples_per_beat as isize - ac_beat.signal.len() as isize;
+        let ac_silence_samples = samples_per_beat - ac_beat.signal.len() as isize;
         if ac_silence_samples < 0 {
             return Err("Accentuated beat to long to play at current bpm");
         }

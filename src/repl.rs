@@ -224,7 +224,7 @@ where
 
         let prompt = &self.prompt;
 
-        // print new status line
+        // display output message
         if let Some(msg) = output_msg {
             stdout
                 .queue(terminal::Clear(ClearType::CurrentLine))?
@@ -234,6 +234,7 @@ where
                 .queue(cursor::MoveToNextLine(1))?;
         }
 
+        // refresh prompt and status line
         stdout
             // print status line
             .queue(cursor::MoveTo(0, rows))?
@@ -248,7 +249,7 @@ where
             .queue(style::Print(prompt))?
             .queue(style::Print(self.history.get_line()))?
             .queue(cursor::MoveToColumn(
-                (prompt.chars().count() + self.history.column + 1) as u16,
+                (prompt.chars().count() + self.history.column) as u16,
             ))?;
 
         // make output happen

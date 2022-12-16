@@ -40,7 +40,7 @@ pub struct AudioSignal<T> {
 impl<T: Copy> AudioSignal<T> {
     pub fn get_next_sample(&mut self) -> T {
         self.index = (self.index + 1) % self.signal.len();
-        self.signal[self.index as usize]
+        self.signal[self.index]
     }
 }
 
@@ -48,14 +48,7 @@ impl From<AudioSignal<f32>> for AudioSignal<u16> {
     fn from(audio_signal: AudioSignal<f32>) -> Self {
         let mut audio: Vec<u16> = Vec::with_capacity(audio_signal.signal.len());
         for sample in audio_signal.signal.into_iter() {
-            let saturated_sample = if sample > 1f32 {
-                1f32
-            } else if sample < -1f32 {
-                -1f32
-            } else {
-                sample
-            };
-            audio.push((saturated_sample * (u16::MAX / 2) as f32).round() as u16);
+            audio.push((sample.clamp(-1f32, 1f32) * (u16::MAX / 2) as f32).round() as u16);
         }
         AudioSignal {
             signal: audio,
@@ -69,14 +62,7 @@ impl From<AudioSignal<f32>> for AudioSignal<i16> {
     fn from(audio_signal: AudioSignal<f32>) -> Self {
         let mut audio: Vec<i16> = Vec::with_capacity(audio_signal.signal.len());
         for sample in audio_signal.signal.into_iter() {
-            let saturated_sample = if sample > 1f32 {
-                1f32
-            } else if sample < -1f32 {
-                -1f32
-            } else {
-                sample
-            };
-            audio.push((saturated_sample * i16::MAX as f32).round() as i16);
+            audio.push((sample.clamp(-1f32, 1f32) * i16::MAX as f32).round() as i16);
         }
         AudioSignal {
             signal: audio,
@@ -159,7 +145,7 @@ impl AudioSignal<f32> {
             channels: 1,
         };
         let pi = f64::consts::PI;
-        let amplitude = settings::SINE_MAX_AMPLITUDE as f64;
+        let amplitude = settings::SINE_MAX_AMPLITUDE;
 
         let num_samples = (length * sample_rate).round() as usize;
         let mut audio_signal = AudioSignal {
