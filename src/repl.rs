@@ -367,6 +367,7 @@ fn parse_cmd_w_args(input: String) -> (String, String) {
 /// Represent command history
 ///
 /// Implements a virtual cursor (row, column) and provides keystroke implementations for cursor navigation
+#[derive(Debug, PartialEq)]
 pub struct InputHistory {
     /// Previous inputs, should not be altered
     previous_lines: Vec<Vec<char>>,
@@ -500,5 +501,51 @@ impl InputHistory {
 
     fn del_key(&mut self) -> bool {
         self.delete_char()
+    }
+}
+
+#[cfg(test)]
+mod test_inputhistory {
+    use super::*;
+
+    #[test]
+    fn test_backspace() {
+        let mut history_test = InputHistory::new();
+        let mut history_compare = InputHistory::new();
+        assert_eq!(history_test, history_compare);
+
+        history_test.add_char(&'c');
+        history_compare.add_char(&'c');
+        history_test.backspace();
+
+        assert!(history_compare.writing_buffer.pop().is_some());
+        history_compare.column -= 1;
+        assert_eq!(history_test, history_compare);
+    }
+
+    #[test]
+    fn test_add_char() {
+        let mut history_test = InputHistory::new();
+        let mut history_compare = InputHistory::new();
+        assert_eq!(history_test, history_compare);
+
+        history_test.add_char(&'c');
+
+        history_compare.writing_buffer.push('c');
+        history_compare.column += 1;
+        assert_eq!(history_test, history_compare);
+    }
+
+    #[test]
+    fn test_add_line() {
+        let mut history_test = InputHistory::new();
+        let mut history_compare = InputHistory::new();
+        assert_eq!(history_test, history_compare);
+
+        history_test.add_line();
+
+        history_compare.row += 1;
+        history_compare.previous_lines.push(vec![]);
+        assert_eq!(history_test, history_compare);
     }
 }
