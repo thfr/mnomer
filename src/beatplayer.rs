@@ -425,6 +425,7 @@ fn create_cpal_stream(
                     }
                 },
                 err_fn,
+                None,
             )
         }
         SampleFormat::I16 => {
@@ -437,6 +438,7 @@ fn create_cpal_stream(
                     }
                 },
                 err_fn,
+                None,
             )
         }
         SampleFormat::U16 => {
@@ -449,8 +451,10 @@ fn create_cpal_stream(
                     }
                 },
                 err_fn,
+                None,
             )
         }
+        _ => todo!(),
     };
 
     match stream {

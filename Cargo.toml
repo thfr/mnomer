@@ -5,5 +5,5 @@ authors = ["Thomas Frank <thfr.git@e.mail.de>"]
 edition = "2021"
 
 [dependencies]
-cpal = "0.14.2"
-crossterm = "0.25.0"
+cpal = "0.15.0"
+crossterm = "0.26.1"
