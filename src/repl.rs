@@ -1,6 +1,6 @@
 use crossterm::{
     self, cursor,
-    event::{Event, KeyCode, KeyModifiers},
+    event::{Event, KeyCode, KeyEventKind, KeyModifiers},
     style,
     style::Stylize,
     terminal::{self, ClearType, EnableLineWrap},
@@ -13,6 +13,7 @@ use std::{
     fmt,
     io::{self, Stdout, Write},
     iter::FromIterator,
+    result::Result,
     string::String,
     sync::atomic::{AtomicBool, Ordering},
     sync::Mutex,
@@ -140,7 +141,7 @@ where
     /// Start the REPL
     ///
     /// Waits for keyboard events to process them
-    pub fn run(&mut self) -> crossterm::Result<()> {
+    pub fn run(&mut self) -> io::Result<()> {
         self.exit.store(false, Ordering::SeqCst);
         let mut stdout = io::stdout();
         crossterm::terminal::enable_raw_mode()?;
@@ -156,7 +157,9 @@ where
                 {
                     break;
                 };
-                self.on_key_pressed(&mut stdout, &event.code)?;
+                if event.kind != KeyEventKind::Release {
+                    self.on_key_pressed(&mut stdout, &event.code)?;
+                }
             }
         }
         // Exit, make sure to leave enough new lines so that the status line remain in command
@@ -169,7 +172,7 @@ where
     }
 
     /// React on key presses
-    fn on_key_pressed(&mut self, stdout: &mut Stdout, key: &KeyCode) -> crossterm::Result<()> {
+    fn on_key_pressed(&mut self, stdout: &mut Stdout, key: &KeyCode) -> io::Result<()> {
         let mut key_message: Option<String> = None;
         let key_press_successful = match key {
             KeyCode::Char(c) => {
@@ -219,7 +222,7 @@ where
         &mut self,
         stdout: &mut Stdout,
         output_msg: Option<String>,
-    ) -> crossterm::Result<()> {
+    ) -> io::Result<()> {
         let (_, rows) = terminal::size()?;
 
         let prompt = &self.prompt;
