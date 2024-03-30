@@ -5,7 +5,7 @@ use cpal::{
 
 use crate::{
     audiosignal::{samples_to_time, AudioSignal, ToneConfiguration},
-    repl::ReplApp,
+    repl::repl::ReplApp,
 };
 use std::{convert::TryFrom, f64, fmt::Display, sync::Mutex};
 

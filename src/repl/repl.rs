@@ -12,12 +12,13 @@ use std::{
     error::Error,
     fmt,
     io::{self, Stdout, Write},
-    iter::FromIterator,
     result::Result,
     string::String,
     sync::atomic::{AtomicBool, Ordering},
     sync::Mutex,
 };
+
+use super::inputhistory::InputHistory;
 
 /// CommandFunction is the callback that implements the actual behavior of the command
 type CommandFunction<T> = dyn FnMut(Option<String>, &mut T) -> Result<String, String>;
@@ -252,7 +253,7 @@ where
             .queue(style::Print(prompt))?
             .queue(style::Print(self.history.get_line()))?
             .queue(cursor::MoveToColumn(
-                (prompt.chars().count() + self.history.column) as u16,
+                (prompt.chars().count() + self.history.column()) as u16,
             ))?;
 
         // make output happen
@@ -365,190 +366,4 @@ fn parse_cmd_w_args(input: String) -> (String, String) {
         }
     };
     (command_str, args_str)
-}
-
-/// Represent command history
-///
-/// Implements a virtual cursor (row, column) and provides keystroke implementations for cursor navigation
-#[derive(Debug, PartialEq)]
-pub struct InputHistory {
-    /// Previous inputs, should not be altered
-    previous_lines: Vec<Vec<char>>,
-    /// Current input, which is altered
-    writing_buffer: Vec<char>,
-    /// If row equals length of previous_lines, then display `writing_buffer`, else display a line from `previous_lines`
-    row: usize,
-    /// Cursor column so that we know where to put in the character
-    column: usize,
-}
-
-impl InputHistory {
-    pub fn new() -> InputHistory {
-        InputHistory {
-            // initialize with `previous_lines.len() == 0`
-            previous_lines: vec![],
-            writing_buffer: vec![],
-            row: 0,
-            column: 0,
-        }
-    }
-
-    fn _row_in_previous_lines(&self) -> bool {
-        self.row < self.previous_lines.len() && !self.previous_lines.is_empty()
-    }
-
-    fn _prepare_modifying_access(&mut self) {
-        if self._row_in_previous_lines() {
-            self.writing_buffer
-                .clone_from(&self.previous_lines[self.row]);
-            self.row = self.previous_lines.len();
-        }
-    }
-
-    fn _current_line_len(&self) -> usize {
-        if self.row == self.previous_lines.len() {
-            self.writing_buffer.len()
-        } else {
-            self.previous_lines[self.row].len()
-        }
-    }
-
-    fn add_char(&mut self, c: &char) {
-        self._prepare_modifying_access();
-        self.writing_buffer.insert(self.column, *c);
-        self.column += 1;
-    }
-
-    fn delete_char(&mut self) -> bool {
-        self._prepare_modifying_access();
-        if self.column < self.writing_buffer.len() {
-            self.writing_buffer.remove(self.column);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn add_line(&mut self) -> bool {
-        self._prepare_modifying_access();
-        let current_line = std::mem::take(&mut self.writing_buffer);
-        self.previous_lines.push(current_line);
-        self.row = self.previous_lines.len();
-        self.column = 0;
-        true
-    }
-
-    fn get_line(&self) -> String {
-        if self._row_in_previous_lines() {
-            String::from_iter(self.previous_lines[self.row].iter())
-        } else {
-            String::from_iter(self.writing_buffer.iter())
-        }
-    }
-
-    #[allow(dead_code)]
-    fn debug_status(&self) -> String {
-        format!("R={:3} C={:3}: ", self.row, self.column)
-    }
-
-    ////////////////////////////
-    // Keystroke implementations
-    ////////////////////////////
-
-    fn right(&mut self) -> bool {
-        if self.column < self._current_line_len() {
-            self.column += 1;
-            true
-        } else {
-            false
-        }
-    }
-
-    fn left(&mut self) -> bool {
-        if self.column != 0 {
-            self.column -= 1;
-            true
-        } else {
-            false
-        }
-    }
-
-    fn down(&mut self) -> bool {
-        if self.row < self.previous_lines.len() {
-            self.row += 1;
-            self.column = self._current_line_len();
-            true
-        } else {
-            false
-        }
-    }
-
-    fn up(&mut self) -> bool {
-        if self.row != 0 {
-            self.row -= 1;
-            self.column = self.previous_lines[self.row].len();
-            true
-        } else {
-            false
-        }
-    }
-
-    fn backspace(&mut self) -> bool {
-        if self.column > 0 {
-            self.column -= 1;
-            self.delete_char()
-        } else {
-            false
-        }
-    }
-
-    fn del_key(&mut self) -> bool {
-        self.delete_char()
-    }
-}
-
-#[cfg(test)]
-mod test_inputhistory {
-    use super::*;
-
-    #[test]
-    fn test_backspace() {
-        let mut history_test = InputHistory::new();
-        let mut history_compare = InputHistory::new();
-        assert_eq!(history_test, history_compare);
-
-        history_test.add_char(&'c');
-        history_compare.add_char(&'c');
-        history_test.backspace();
-
-        assert!(history_compare.writing_buffer.pop().is_some());
-        history_compare.column -= 1;
-        assert_eq!(history_test, history_compare);
-    }
-
-    #[test]
-    fn test_add_char() {
-        let mut history_test = InputHistory::new();
-        let mut history_compare = InputHistory::new();
-        assert_eq!(history_test, history_compare);
-
-        history_test.add_char(&'c');
-
-        history_compare.writing_buffer.push('c');
-        history_compare.column += 1;
-        assert_eq!(history_test, history_compare);
-    }
-
-    #[test]
-    fn test_add_line() {
-        let mut history_test = InputHistory::new();
-        let mut history_compare = InputHistory::new();
-        assert_eq!(history_test, history_compare);
-
-        history_test.add_line();
-
-        history_compare.row += 1;
-        history_compare.previous_lines.push(vec![]);
-        assert_eq!(history_test, history_compare);
-    }
 }

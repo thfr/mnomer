@@ -4,7 +4,7 @@ mod repl;
 
 use audiosignal::{freqency_relative_semitone_equal_temperament, ToneConfiguration};
 use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
-use repl::{BuiltInOverwriteError, Repl};
+use repl::repl::{BuiltInOverwriteError, Repl};
 use std::convert::TryFrom;
 use std::error::Error;
 
