@@ -6,12 +6,12 @@ The main purpose is to experiment with and train myself in the Rust programming 
 
 It should work on Linux, macOS and Windows.
 
-Current version is [0.2.0](https://github.com/thfr/mnomer/releases/tag/0.2.0).
+Current version is [0.2.1](https://github.com/thfr/mnomer/releases/tag/0.2.1).
 
 ## Features
 
 * a simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
-* 3 beat types: Accent, Beat and Pause
+* 3 beat types: Accent `!`, Beat `+` and Pause `.`
 * start/stop with ENTER key
 * pitch, bpm, beat pattern and beat value changable
 * help
@@ -30,8 +30,8 @@ Following commands are implemented:
 * `quit`, `exit` or CTRL+C exits the application
 
 ```plain
-♩♩♩: help
-Known commands: "pitch" "value" "bpm" <ENTER> "start" "stop" "pattern"
+♩♩♩♩: help
+Known commands: "help" <ENTER> "start" "pattern" "pitch" "quit" "value" "exit" "stop" "bpm"
 ♩♩♩♩: help pitch
 "pitch <accentuated beat pitch> <normal beat pitch>"
   pitches must should within [20; 20k]Hz

@@ -1,6 +1,6 @@
 [package]
 name = "mnomer"
-version = "0.1.0"
+version = "0.2.1"
 authors = ["Thomas Frank <thfr.git@e.mail.de>"]
 edition = "2021"
 
