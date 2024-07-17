@@ -24,6 +24,7 @@ impl InputHistory {
         }
     }
 
+    #[cfg(test)]
     pub fn row(&self) -> usize {
         return self.row;
     }
