@@ -26,11 +26,11 @@ impl InputHistory {
 
     #[cfg(test)]
     pub fn row(&self) -> usize {
-        return self.row;
+        self.row
     }
 
     pub fn column(&self) -> usize {
-        return self.column;
+        self.column
     }
 
     fn _row_in_previous_lines(&self) -> bool {

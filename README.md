@@ -13,7 +13,7 @@ Current version is [0.2.1](https://github.com/thfr/mnomer/releases/tag/0.2.1).
 * a simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
 * 3 beat types: Accent `!`, Beat `+` and Pause `.`
 * start/stop with ENTER key
-* pitch, bpm, beat pattern and beat value changable
+* pitch, bpm, beat pattern and beat value changeable
 * help
 
 ## Usage
@@ -26,7 +26,7 @@ Following commands are implemented:
 * `pitch <accent> <normal>`
 * `pattern <pattern>` with `<pattern>` adhering to `[!|+|\.]*`
 * `value <beat value>`, defaults to `4` which means the beat is 1/4
-* `help [<command>]`, shows the commands when no additonal command is given or the help for a specific command
+* `help [<command>]`, shows the commands when no additional command is given or the help for a specific command
 * `quit`, `exit` or CTRL+C exits the application
 
 ```plain

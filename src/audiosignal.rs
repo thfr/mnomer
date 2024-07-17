@@ -1,6 +1,4 @@
-use std::f64;
-use std::i16;
-
+use std::f64::consts::PI;
 use std::ops::{Add, AddAssign, Mul, MulAssign};
 
 pub mod settings {
@@ -17,7 +15,7 @@ pub fn samples_to_time(samples: usize, sample_rate: f64) -> f64 {
     samples as f64 / sample_rate
 }
 
-pub fn freqency_relative_semitone_equal_temperament(base: f64, semitone: f64) -> f64 {
+pub fn frequency_relative_semitone_equal_temperament(base: f64, semitone: f64) -> f64 {
     base * 2f64.powf(semitone / 12f64)
 }
 
@@ -144,7 +142,7 @@ impl AudioSignal<f32> {
             overtones: 0,
             channels: 1,
         };
-        let pi = f64::consts::PI;
+        let pi: f64 = PI;
         let amplitude = settings::SINE_MAX_AMPLITUDE;
 
         let num_samples = (length * sample_rate).round() as usize;
