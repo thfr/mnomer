@@ -161,7 +161,7 @@ impl BeatPlayer {
         };
 
         let previous_pattern = pattern.0.clone();
-        self.pattern.0 = pattern.0.clone();
+        self.pattern.0.clone_from(&pattern.0);
 
         if restart && self.play_beat().is_err() {
             self.pattern.0 = previous_pattern;

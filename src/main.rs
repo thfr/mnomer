@@ -2,7 +2,7 @@ mod audiosignal;
 mod beatplayer;
 mod repl;
 
-use audiosignal::{freqency_relative_semitone_equal_temperament, ToneConfiguration};
+use audiosignal::{frequency_relative_semitone_equal_temperament, ToneConfiguration};
 use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
 use repl::repl::{BuiltInOverwriteError, Repl};
 use std::convert::TryFrom;
@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // accentuated beat is 5 semitones higher than the normal beat
     let accentuated_beat = ToneConfiguration {
-        frequency: freqency_relative_semitone_equal_temperament(freq, 5.0),
+        frequency: frequency_relative_semitone_equal_temperament(freq, 5.0),
         ..normal_beat
     };
 

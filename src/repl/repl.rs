@@ -309,7 +309,7 @@ where
                         (cmddef.function.as_mut().unwrap())(None, self.app.get_mut().unwrap())
                     }
                 } else {
-                    Err("No function assotiated".to_string())
+                    Err("No function associated".to_string())
                 };
                 match cmd_result {
                     Ok(msg) => Ok(msg),
