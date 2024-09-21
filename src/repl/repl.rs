@@ -16,6 +16,7 @@ use std::{
     string::String,
     sync::atomic::{AtomicBool, Ordering},
     sync::Mutex,
+    time::Duration,
 };
 
 use super::inputhistory::InputHistory;
@@ -59,6 +60,7 @@ impl Error for BuiltInOverwriteError {}
 /// Requirement for the object that the REPL interacts with
 pub trait ReplApp {
     fn get_status(&self) -> String;
+    fn get_event_interval(&self) -> Duration;
 }
 
 /// Implementation of a Read Print Evaluate Loop (REPL)
@@ -152,14 +154,16 @@ where
         self.refresh_prompt_status(&mut stdout, None)?;
 
         while !self.exit.load(Ordering::SeqCst) {
-            if let Event::Key(event) = crossterm::event::read()? {
-                if event.modifiers == KeyModifiers::CONTROL
-                    && (event.code == KeyCode::Char('c') || event.code == KeyCode::Char('d'))
-                {
-                    break;
-                };
-                if event.kind != KeyEventKind::Release {
-                    self.on_key_pressed(&mut stdout, &event.code)?;
+            if crossterm::event::poll(self.app.get_mut().unwrap().get_event_interval())? {
+                if let Event::Key(event) = crossterm::event::read()? {
+                    if event.modifiers == KeyModifiers::CONTROL
+                        && (event.code == KeyCode::Char('c') || event.code == KeyCode::Char('d'))
+                    {
+                        break;
+                    };
+                    if event.kind != KeyEventKind::Release {
+                        self.on_key_pressed(&mut stdout, &event.code)?;
+                    }
                 }
             }
         }

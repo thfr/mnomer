@@ -7,7 +7,7 @@ use crate::{
     audiosignal::{samples_to_time, AudioSignal, ToneConfiguration},
     repl::repl::ReplApp,
 };
-use std::{convert::TryFrom, f64, fmt::Display, sync::Mutex};
+use std::{convert::TryFrom, f64, fmt::Display, sync::Mutex, time::Duration};
 
 pub const BASE_BEAT_VALUE: u16 = 4;
 
@@ -91,6 +91,11 @@ impl ReplApp for BeatPlayer {
             &self.ac_beat.frequency,
             &self.beat.frequency
         )
+    }
+
+    fn get_event_interval(&self) -> Duration {
+        let events_per_sec = self.bpm as f64 / 60.0;
+        std::time::Duration::from_micros((events_per_sec * 1_000_000.0) as u64)
     }
 }
 
