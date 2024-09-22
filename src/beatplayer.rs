@@ -451,7 +451,7 @@ impl BeatPlayer {
         });
 
         match self.stream.as_mut().unwrap().stream.play() {
-            Ok(_) => (), //self.stream.as_mut().unwrap().start_time = Instant::now(),
+            Ok(_) => (),
             Err(_) => {
                 self.stream = None;
                 return Err("Something went wrong with beat playback".into());
