@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         4,
         normal_beat,
         accentuated_beat,
-        BeatPattern(vec![
+        BeatPattern::new(vec![
             BeatPatternType::Accent,
             BeatPatternType::Beat,
             BeatPatternType::Beat,

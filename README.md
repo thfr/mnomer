@@ -1,20 +1,21 @@
 # Mnomer
 
-Mnomer is a metronom application written in Rust.
+Mnomer is a console based metronome application written in Rust.
 It is an enhanced version of the C++ project [mnome](https://github.com/thfr/mnome).
-The main purpose is to experiment with and train myself in the Rust programming language.
 
-It should work on Linux, macOS and Windows.
+It should compile and function on Linux, macOS and Windows.
 
 Current version is [0.2.1](https://github.com/thfr/mnomer/releases/tag/0.2.1).
 
 ## Features
 
-* a simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
+* A simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
+* Status line with information about the metronome's configuration
 * 3 beat types: Accent `!`, Beat `+` and Pause `.`
-* start/stop with ENTER key
-* pitch, bpm, beat pattern and beat value changeable
-* help
+* Current beat is marked on the status line (surrounded by spaces)
+* Start/stop with ENTER key
+* Pitch, bpm, beat pattern and beat value changeable
+* Help
 
 ## Usage
 
@@ -46,5 +47,5 @@ Known commands: "help" <ENTER> "start" "pattern" "pitch" "quit" "value" "exit" "
   <pattern> must be in the form of `[!|+|.]*`
   `!` = accentuated beat  `+` = normal beat  `.` = pause
 ♩♩♩♩:
-pattern: !+++  value: 1/4 bpm: 100  !: 587.330Hz  +:440.000Hz
+pattern:  ! +++  value: 1/4 bpm: 100  !: 587.330Hz  +:440.000Hz
 ```

@@ -7,7 +7,13 @@ use crate::{
     audiosignal::{samples_to_time, AudioSignal, ToneConfiguration},
     repl::repl::ReplApp,
 };
-use std::{convert::TryFrom, f64, fmt::Display, sync::Mutex};
+use std::{
+    convert::TryFrom,
+    f64,
+    fmt::Display,
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
 pub const BASE_BEAT_VALUE: u16 = 4;
 
@@ -45,15 +51,44 @@ impl From<&BeatPatternType> for char {
 
 /// Metronome beat pattern
 #[derive(Debug, Clone)]
-pub struct BeatPattern(pub Vec<BeatPatternType>);
+pub struct BeatPattern {
+    pub pattern: Vec<BeatPatternType>,
+    pub index: usize,
+}
+
+impl BeatPattern {
+    pub fn new(pattern: Vec<BeatPatternType>) -> BeatPattern {
+        BeatPattern { pattern, index: 0 }
+    }
+
+    /// String with the current beat marked
+    pub fn to_string_with_current_beat(&self) -> String {
+        let mut res = String::new();
+        let beat_index = self.index;
+        for (idx, beat) in self.pattern.iter().enumerate() {
+            if beat_index == idx {
+                let mark = ' ';
+                res.push(mark);
+                res.push(beat.into());
+                res.push(mark);
+            } else {
+                res.push(beat.into());
+            }
+        }
+        res
+    }
+}
 
 impl TryFrom<&str> for BeatPattern {
     type Error = String;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let mut result = BeatPattern(Vec::with_capacity(value.len()));
+        let mut result = BeatPattern {
+            pattern: Vec::with_capacity(value.len()),
+            index: 0,
+        };
         for element in value.chars() {
-            result.0.push(BeatPatternType::try_from(&element)?);
+            result.pattern.push(BeatPatternType::try_from(&element)?);
         }
         Ok(result)
     }
@@ -62,11 +97,16 @@ impl TryFrom<&str> for BeatPattern {
 impl Display for BeatPattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut res = String::new();
-        for beat in &self.0 {
+        for beat in &self.pattern {
             res.push(beat.into());
         }
         write!(f, "{}", res)
     }
+}
+
+pub struct StreamWrapper {
+    stream: Stream,
+    start_time: Instant,
 }
 
 /// A metronome sound player that realizes the beat playback
@@ -76,21 +116,27 @@ pub struct BeatPlayer {
     pub beat_value: u16,
     pub beat: ToneConfiguration,
     pub ac_beat: ToneConfiguration,
-    pub pattern: BeatPattern,
-    stream: Option<Stream>,
+    pub beat_pattern: BeatPattern,
+    stream: Option<StreamWrapper>,
     start_stop_mtx: Mutex<()>,
 }
 
 impl ReplApp for BeatPlayer {
-    fn get_status(&self) -> String {
+    fn get_status(&mut self) -> String {
+        self.update_pattern_counter();
         format!(
             "pattern: {}  value: 1/{} bpm: {}  !: {:.3}Hz  +:{:.3}Hz",
-            &self.pattern,
+            &self.beat_pattern.to_string_with_current_beat(),
             &self.beat_value,
             &self.bpm,
             &self.ac_beat.frequency,
             &self.beat.frequency
         )
+    }
+
+    fn get_event_interval(&self) -> Duration {
+        let events_per_sec = self.bpm as f64 / 60.0;
+        std::time::Duration::from_secs_f64(1.0 / events_per_sec)
     }
 }
 
@@ -101,7 +147,7 @@ impl ToString for BeatPlayer {
             playing: {}",
             self.bpm,
             self.beat_value,
-            self.pattern,
+            self.beat_pattern,
             self.ac_beat.frequency,
             self.beat.frequency,
             self.is_playing()
@@ -115,14 +161,14 @@ impl BeatPlayer {
         beat_value: u16,
         beat: ToneConfiguration,
         ac_beat: ToneConfiguration,
-        pattern: BeatPattern,
+        beat_pattern: BeatPattern,
     ) -> BeatPlayer {
         BeatPlayer {
             bpm,
             beat_value,
             beat,
             ac_beat,
-            pattern,
+            beat_pattern,
             stream: None,
             start_stop_mtx: Mutex::new(()),
         }
@@ -141,7 +187,7 @@ impl BeatPlayer {
             .lock()
             .expect("Playback start mutex is poisoned, aborting");
         if let Some(x) = self.stream.as_mut() {
-            x.pause().expect("Error during pause");
+            x.stream.pause().expect("Error during pause");
         };
         self.stream = None;
     }
@@ -149,8 +195,8 @@ impl BeatPlayer {
     /// Set the beat pattern
     ///
     /// Stops and resumes playback if playback is running
-    pub fn set_pattern(&mut self, pattern: &BeatPattern) -> Result<(), String> {
-        if pattern.0.is_empty() {
+    pub fn set_pattern(&mut self, beat_pattern: &BeatPattern) -> Result<(), String> {
+        if beat_pattern.pattern.is_empty() {
             return Err("Beat pattern is empty, will not change anything".to_string());
         }
         let restart = if self.is_playing() {
@@ -160,11 +206,11 @@ impl BeatPlayer {
             false
         };
 
-        let previous_pattern = pattern.0.clone();
-        self.pattern.0.clone_from(&pattern.0);
+        let previous_pattern = beat_pattern.pattern.clone();
+        self.beat_pattern.pattern.clone_from(&beat_pattern.pattern);
 
         if restart && self.play_beat().is_err() {
-            self.pattern.0 = previous_pattern;
+            self.beat_pattern.pattern = previous_pattern;
             Err("New pattern does not seem to work, returning to previous pattern".to_string())
         } else {
             Ok(())
@@ -226,6 +272,9 @@ impl BeatPlayer {
         }
     }
 
+    /// Set pitches for accent and normal beat
+    ///
+    /// Stops and resumes playback if playback is running
     pub fn set_pitches(&mut self, accent_pitch: f64, normal_pitch: f64) -> Result<(), String> {
         let check_pitch_bounds = |x: f64| -> Result<(), String> {
             if (20.0..=20000.0).contains(&x) {
@@ -252,6 +301,15 @@ impl BeatPlayer {
         }
 
         Ok(())
+    }
+
+    fn update_pattern_counter(&mut self) {
+        if let Some(stream) = &self.stream {
+            let elapsed_seconds = (Instant::now() - stream.start_time).as_secs_f64();
+            let beats_per_second = self.bpm as f64 / 60.0;
+            let played_beats = (elapsed_seconds * beats_per_second).floor() as usize;
+            self.beat_pattern.index = played_beats % self.beat_pattern.pattern.len();
+        };
     }
 
     fn _fill_playback_buffer(
@@ -296,7 +354,7 @@ impl BeatPlayer {
             let mut a = 0;
             let mut b = 0;
             let mut c = 0;
-            for bpt in &self.pattern.0 {
+            for bpt in &self.beat_pattern.pattern {
                 match bpt {
                     BeatPatternType::Accent => a += 1,
                     BeatPatternType::Beat => b += 1,
@@ -322,7 +380,8 @@ impl BeatPlayer {
                 channels: 1,
             },
         };
-        for beat_type in &self.pattern.0 {
+
+        for beat_type in &self.beat_pattern.pattern {
             match beat_type {
                 BeatPatternType::Accent => {
                     playback_buffer
@@ -381,22 +440,22 @@ impl BeatPlayer {
             }
         };
 
-        let playback_buffer = match self._fill_playback_buffer(
+        let playback_buffer = self._fill_playback_buffer(
             default_config.sample_rate().0 as f64,
             default_config.channels() as usize,
-        ) {
-            Ok(audio_signal) => audio_signal,
-            Err(msg) => return Err(msg.into()),
-        };
+        )?;
 
-        self.stream = match create_cpal_stream(device, default_config, playback_buffer) {
-            Ok(x) => Some(x),
-            Err(y) => return Err(y),
-        };
+        self.stream = Some(StreamWrapper {
+            stream: create_cpal_stream(device, default_config, playback_buffer)?,
+            start_time: Instant::now(),
+        });
 
-        match self.stream.as_mut().unwrap().play() {
+        match self.stream.as_mut().unwrap().stream.play() {
             Ok(_) => (),
-            Err(_) => return Err("Something went wrong with beat playback".into()),
+            Err(_) => {
+                self.stream = None;
+                return Err("Something went wrong with beat playback".into());
+            }
         };
 
         // everything was fine fine
