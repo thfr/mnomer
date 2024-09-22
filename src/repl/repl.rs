@@ -59,7 +59,7 @@ impl Error for BuiltInOverwriteError {}
 
 /// Requirement for the object that the REPL interacts with
 pub trait ReplApp {
-    fn get_status(&self) -> String;
+    fn get_status(&mut self) -> String;
     fn get_event_interval(&self) -> Duration;
 }
 
@@ -145,7 +145,7 @@ where
     ///
     /// Waits for keyboard events to process them
     pub fn run(&mut self) -> io::Result<()> {
-        self.exit.store(false, Ordering::SeqCst);
+        self.exit.store(false, Ordering::Relaxed);
         let mut stdout = io::stdout();
         crossterm::terminal::enable_raw_mode()?;
         stdout.queue(EnableLineWrap {})?.flush()?;
@@ -153,8 +153,14 @@ where
         // print prompt first time
         self.refresh_prompt_status(&mut stdout, None)?;
 
-        while !self.exit.load(Ordering::SeqCst) {
-            if crossterm::event::poll(self.app.get_mut().unwrap().get_event_interval())? {
+        while !self.exit.load(Ordering::Relaxed) {
+            if crossterm::event::poll(
+                self.app
+                    .get_mut()
+                    .unwrap()
+                    .get_event_interval()
+                    .div_f64(2.0),
+            )? {
                 if let Event::Key(event) = crossterm::event::read()? {
                     if event.modifiers == KeyModifiers::CONTROL
                         && (event.code == KeyCode::Char('c') || event.code == KeyCode::Char('d'))
@@ -166,6 +172,8 @@ where
                     }
                 }
             }
+            // refresh status prompt for updates
+            self.refresh_prompt_status(&mut stdout, None)?;
         }
         // Exit, make sure to leave enough new lines so that the status line remain in command
         // window scroll back
@@ -273,7 +281,7 @@ where
         // match predefined commands
         match parsed_cmd.as_str() {
             "quit" | "exit" => {
-                self.exit.store(true, Ordering::SeqCst);
+                self.exit.store(true, Ordering::Relaxed);
                 return Ok(String::from("Exiting"));
             }
             "help" => {
