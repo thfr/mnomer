@@ -12,7 +12,7 @@ Current version is [0.2.1](https://github.com/thfr/mnomer/releases/tag/0.2.1).
 * A simple [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
 * Status line with information about the metronome's configuration
 * 3 beat types: Accent `!`, Beat `+` and Pause `.`
-* Current beat is marked on the status line (surrounded by spaces)
+* Current beat is marked on the status line (underlined)
 * Start/stop with ENTER key
 * Pitch, bpm, beat pattern and beat value changeable
 * Help
@@ -47,5 +47,5 @@ Known commands: "help" <ENTER> "start" "pattern" "pitch" "quit" "value" "exit" "
   <pattern> must be in the form of `[!|+|.]*`
   `!` = accentuated beat  `+` = normal beat  `.` = pause
 ♩♩♩♩:
-pattern:  ! +++  value: 1/4 bpm: 100  !: 587.330Hz  +:440.000Hz
+pattern:  !+++  value: 1/4 bpm: 100  !: 587.330Hz  +:440.000Hz
 ```

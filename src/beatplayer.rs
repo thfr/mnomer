@@ -15,6 +15,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crossterm::style::Attribute;
+
 pub const BASE_BEAT_VALUE: u16 = 4;
 
 /// Metronome beat pattern types
@@ -49,28 +51,42 @@ impl From<&BeatPatternType> for char {
     }
 }
 
+impl Display for BeatPatternType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let res: char = self.into();
+        write!(f, "{}", res)
+    }
+}
+
 /// Metronome beat pattern
 #[derive(Debug, Clone)]
 pub struct BeatPattern {
     pub pattern: Vec<BeatPatternType>,
-    pub index: usize,
+    pub index: Option<usize>,
 }
 
 impl BeatPattern {
     pub fn new(pattern: Vec<BeatPatternType>) -> BeatPattern {
-        BeatPattern { pattern, index: 0 }
+        BeatPattern {
+            pattern,
+            index: None,
+        }
     }
 
     /// String with the current beat marked
     pub fn to_string_with_current_beat(&self) -> String {
         let mut res = String::new();
-        let beat_index = self.index;
         for (idx, beat) in self.pattern.iter().enumerate() {
-            if beat_index == idx {
-                let mark = ' ';
-                res.push(mark);
-                res.push(beat.into());
-                res.push(mark);
+            if Some(idx) == self.index {
+                res.extend(
+                    format!(
+                        "{}{}{}",
+                        Attribute::Underlined,
+                        beat,
+                        Attribute::NoUnderline
+                    )
+                    .chars(),
+                );
             } else {
                 res.push(beat.into());
             }
@@ -85,7 +101,7 @@ impl TryFrom<&str> for BeatPattern {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let mut result = BeatPattern {
             pattern: Vec::with_capacity(value.len()),
-            index: 0,
+            index: None,
         };
         for element in value.chars() {
             result.pattern.push(BeatPatternType::try_from(&element)?);
@@ -140,9 +156,10 @@ impl ReplApp for BeatPlayer {
     }
 }
 
-impl ToString for BeatPlayer {
-    fn to_string(&self) -> String {
-        format!(
+impl Display for BeatPlayer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
             "bpm: {:4}, beat_value: 1/{}, pattern: {:?}, accent: {:.2}Hz, normal: {:.2}Hz, \
             playing: {}",
             self.bpm,
@@ -190,6 +207,7 @@ impl BeatPlayer {
             x.stream.pause().expect("Error during pause");
         };
         self.stream = None;
+        self.beat_pattern.index = None;
     }
 
     /// Set the beat pattern
@@ -305,10 +323,12 @@ impl BeatPlayer {
 
     fn update_pattern_counter(&mut self) {
         if let Some(stream) = &self.stream {
-            let elapsed_seconds = (Instant::now() - stream.start_time).as_secs_f64();
-            let beats_per_second = self.bpm as f64 / 60.0;
-            let played_beats = (elapsed_seconds * beats_per_second).floor() as usize;
-            self.beat_pattern.index = played_beats % self.beat_pattern.pattern.len();
+            if self.beat_pattern.index.is_some() {
+                let elapsed_seconds = (Instant::now() - stream.start_time).as_secs_f64();
+                let beats_per_second = self.bpm as f64 / 60.0;
+                let played_beats = (elapsed_seconds * beats_per_second).floor() as usize;
+                self.beat_pattern.index = Some(played_beats % self.beat_pattern.pattern.len());
+            }
         };
     }
 
@@ -449,6 +469,7 @@ impl BeatPlayer {
             stream: create_cpal_stream(device, default_config, playback_buffer)?,
             start_time: Instant::now(),
         });
+        self.beat_pattern.index = Some(0);
 
         match self.stream.as_mut().unwrap().stream.play() {
             Ok(_) => (),
