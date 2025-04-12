@@ -5,7 +5,7 @@ use cpal::{
 
 use crate::{
     audiosignal::{samples_to_time, AudioSignal, ToneConfiguration},
-    repl::repl::ReplApp,
+    input_handling::repl::ReplApp,
 };
 use std::{
     convert::TryFrom,

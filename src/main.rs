@@ -1,10 +1,10 @@
 mod audiosignal;
 mod beatplayer;
-mod repl;
+mod input_handling;
 
 use audiosignal::{frequency_relative_semitone_equal_temperament, ToneConfiguration};
 use beatplayer::{BeatPattern, BeatPatternType, BeatPlayer};
-use repl::repl::{BuiltInOverwriteError, Repl};
+use input_handling::repl::{BuiltInOverwriteError, Repl};
 use std::convert::TryFrom;
 use std::error::Error;
 
