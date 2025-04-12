@@ -395,7 +395,7 @@ impl BeatPlayer {
             tone: ToneConfiguration {
                 frequency: 0.0,
                 sample_rate,
-                length: samples_to_time(playback_buffer_samples, sample_rate),
+                duration: samples_to_time(playback_buffer_samples, sample_rate),
                 overtones: 0,
                 channels: 1,
             },

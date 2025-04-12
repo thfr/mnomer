@@ -24,7 +24,7 @@ pub struct ToneConfiguration {
     pub sample_rate: f64,
     pub frequency: f64,
     pub overtones: u8,
-    pub length: f64,
+    pub duration: f64,
     pub channels: usize,
 }
 
@@ -120,13 +120,14 @@ impl MulAssign<f64> for AudioSignal<f32> {
 impl AudioSignal<f32> {
     pub fn generate_tone(tone: &ToneConfiguration) -> AudioSignal<f32> {
         // base signal
-        let mut signal = AudioSignal::generate_sine(tone.frequency, tone.length, tone.sample_rate);
+        let mut signal =
+            AudioSignal::generate_sine(tone.frequency, tone.duration, tone.sample_rate);
 
         // add overtones
         for freq_factor in 2..(tone.overtones + 2) {
             signal += AudioSignal::generate_sine(
                 freq_factor as f64 * tone.frequency,
-                tone.length,
+                tone.duration,
                 tone.sample_rate,
             ) * 0.5;
         }
@@ -137,7 +138,7 @@ impl AudioSignal<f32> {
     fn generate_sine(freq: f64, length: f64, sample_rate: f64) -> AudioSignal<f32> {
         let tone = ToneConfiguration {
             frequency: freq,
-            length,
+            duration: length,
             sample_rate,
             overtones: 0,
             channels: 1,
