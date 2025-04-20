@@ -79,13 +79,7 @@ impl BeatPattern {
         for (idx, beat) in self.pattern.iter().enumerate() {
             if Some(idx) == self.index {
                 res.extend(
-                    format!(
-                        "{}{}{}",
-                        Attribute::Underlined,
-                        beat,
-                        Attribute::NoUnderline
-                    )
-                    .chars(),
+                    format!("{}{}{}", Attribute::NoReverse, beat, Attribute::Reverse,).chars(),
                 );
             } else {
                 res.push(beat.into());

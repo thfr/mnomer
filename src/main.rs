@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let normal_beat = ToneConfiguration {
         frequency: freq,
         sample_rate: 48000.0, // may be changed by the beatplayer to match the audio device
-        length: 0.05,         // 50 ms
+        duration: 0.05,       // 50 ms
         overtones: 1,
         channels: 1,
     };
