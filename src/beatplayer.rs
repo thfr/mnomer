@@ -5,7 +5,7 @@ use cpal::{
 
 use crate::{
     audiosignal::{samples_to_time, AudioSignal, ToneConfiguration},
-    repl::repl::ReplApp,
+    input_handling::repl::ReplApp,
 };
 use std::{
     convert::TryFrom,
@@ -79,13 +79,7 @@ impl BeatPattern {
         for (idx, beat) in self.pattern.iter().enumerate() {
             if Some(idx) == self.index {
                 res.extend(
-                    format!(
-                        "{}{}{}",
-                        Attribute::Underlined,
-                        beat,
-                        Attribute::NoUnderline
-                    )
-                    .chars(),
+                    format!("{}{}{}", Attribute::NoReverse, beat, Attribute::Reverse,).chars(),
                 );
             } else {
                 res.push(beat.into());
@@ -395,7 +389,7 @@ impl BeatPlayer {
             tone: ToneConfiguration {
                 frequency: 0.0,
                 sample_rate,
-                length: samples_to_time(playback_buffer_samples, sample_rate),
+                duration: samples_to_time(playback_buffer_samples, sample_rate),
                 overtones: 0,
                 channels: 1,
             },
